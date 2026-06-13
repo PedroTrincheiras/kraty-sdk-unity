@@ -1,0 +1,18 @@
+{
+  "name": "app.kraty.sdk",
+  "version": "0.1.0",
+  "displayName": "Kraty SDK",
+  "description": "C# SDK for the Kraty game-events platform. Targets the public /sdk/v1 surface: events, leaderboards, grants, crates, lobbies. Built on .NET Standard 2.1 for Unity 2022 LTS+ and any modern .NET runtime.",
+  "unity": "2022.3",
+  "type": "library",
+  "license": "MIT",
+  "homepage": "https://kraty.io",
+  "documentationUrl": "https://kraty.io/docs/sdks/unity",
+  "changelogUrl": "https://github.com/PedroTrincheiras/kraty-sdk-unity/releases",
+  "licensesUrl": "https://github.com/PedroTrincheiras/kraty-sdk-unity/blob/main/LICENSE",
+  "keywords": ["kraty", "events", "leaderboard", "grants", "live-ops"],
+  "author": {
+    "name": "Volt Games",
+    "url": "https://kraty.io"
+  }
+}

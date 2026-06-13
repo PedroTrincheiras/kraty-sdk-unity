@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Test project for Kraty.SDK. Targets the installed SDK's runtime
+    (net10.0) — these tests don't ship to Unity, only run in plain
+    dotnet. The runtime/ source compiles in this context too thanks
+    to the project reference.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <BaseOutputPath>../../../tools/build/sdk-unity-tests/</BaseOutputPath>
+    <BaseIntermediateOutputPath>../../../tools/build/sdk-unity-tests/obj/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kraty.SDK.csproj" />
+  </ItemGroup>
+
+</Project>

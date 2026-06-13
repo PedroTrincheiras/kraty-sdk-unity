@@ -1,0 +1,12 @@
+[Bb]in/
+[Oo]bj/
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+*.csproj.user
+*.user
+*.suo
+.vs/
+.idea/
+.DS_Store
