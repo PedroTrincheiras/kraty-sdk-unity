@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
-using System.Text.Json;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -247,9 +248,9 @@ namespace Kraty.Tests
             var res = await kraty.Inventory.ConsumeAsync("potion_hp", new ConsumeItemInput { Quantity = 1 }, @as: "alice");
             Assert.True(res.Applied);
             Assert.Equal(2, res.Quantity);
-            var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(handler.Calls[0].Body!)!;
-            Assert.Equal(1, body["quantity"].GetInt32());
-            Assert.Equal("idem-1", body["idempotencyKey"].GetString());
+            var body = JsonConvert.DeserializeObject<Dictionary<string, JToken>>(handler.Calls[0].Body!)!;
+            Assert.Equal(1, (int)body["quantity"]);
+            Assert.Equal("idem-1", (string?)body["idempotencyKey"]);
         }
 
         // ── WalletClient ─────────────────────────────────────────────
@@ -281,9 +282,9 @@ namespace Kraty.Tests
             var handler = (FakeHandler)opts.HttpMessageHandler!;
             var res = await kraty.Wallet.DebitAsync("gold", new DebitWalletInput { Amount = 100 }, @as: "alice");
             Assert.Equal(50, res.Balance);
-            var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(handler.Calls[0].Body!)!;
-            Assert.Equal(100, body["amount"].GetInt32());
-            Assert.Equal("idem-1", body["idempotencyKey"].GetString());
+            var body = JsonConvert.DeserializeObject<Dictionary<string, JToken>>(handler.Calls[0].Body!)!;
+            Assert.Equal(100, (int)body["amount"]);
+            Assert.Equal("idem-1", (string?)body["idempotencyKey"]);
         }
 
         // ── GrantsClient.CollectAllAsync ─────────────────────────────

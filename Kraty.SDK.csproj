@@ -20,8 +20,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <!-- Keep build output out of Unity's eyeline. -->
-    <BaseOutputPath>../../tools/build/sdk-unity/</BaseOutputPath>
-    <BaseIntermediateOutputPath>../../tools/build/sdk-unity/obj/</BaseIntermediateOutputPath>
+    <BaseOutputPath>../../../tools/build/sdk-unity/</BaseOutputPath>
+    <BaseIntermediateOutputPath>../../../tools/build/sdk-unity/obj/</BaseIntermediateOutputPath>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
@@ -30,7 +30,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <!--
+      Newtonsoft.Json instead of System.Text.Json so the same source
+      tree compiles under Unity, which ships Json.NET via the official
+      `com.unity.nuget.newtonsoft-json` UPM package (declared as a
+      dependency in package.json). System.Text.Json is technically
+      reachable from .NET Standard 2.1 BUT it isn't in Unity's BCL
+      AND its source-generator-free reflection path breaks under
+      IL2CPP code-stripping on iOS / Android / WebGL builds.
+    -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
 </Project>

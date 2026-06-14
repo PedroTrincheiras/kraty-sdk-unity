@@ -4,10 +4,11 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 
 namespace Kraty
 {
@@ -162,10 +163,10 @@ namespace Kraty
         private const string SdkVersion = "0.0.1";
         private const string SdkUserAgent = SdkName + "/" + SdkVersion;
 
-        private static readonly JsonSerializerOptions JsonOptions = new()
+        private static readonly JsonSerializerSettings JsonOptions = new()
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            NullValueHandling = NullValueHandling.Ignore,
         };
 
         private static readonly HashSet<HttpMethod> IdempotentMethods = new()
@@ -233,7 +234,7 @@ namespace Kraty
         internal string AuthHeaderForStreaming => _authHeader;
         internal string? PlayerSecretForStreaming => _playerSecret;
         internal HttpClient HttpForStreaming => _http;
-        internal JsonSerializerOptions JsonSerializerOptions => JsonOptions;
+        internal JsonSerializerSettings JsonSerializerSettings => JsonOptions;
         internal ISecretStore SecretStore => _secretStore;
 
         /// <summary>
@@ -416,7 +417,7 @@ namespace Kraty
                             throw new KratyApiError((int)res.StatusCode, maybeErr.Code, maybeErr.Message, maybeErr.Details);
 
                         if (string.IsNullOrEmpty(text)) return default!;
-                        return JsonSerializer.Deserialize<T>(text, JsonOptions)!;
+                        return JsonConvert.DeserializeObject<T>(text, JsonOptions)!;
                     }
 
                     var apiErr = await AsApiErrorAsync(res).ConfigureAwait(false);
@@ -475,7 +476,7 @@ namespace Kraty
             }
             if (body != null)
             {
-                var payload = JsonSerializer.Serialize(body, JsonOptions);
+                var payload = JsonConvert.SerializeObject(body, JsonOptions);
                 req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
             }
             return await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
@@ -524,10 +525,15 @@ namespace Kraty
                 return di;
             }
 
-            var node = JsonSerializer.SerializeToNode(body, JsonOptions);
-            if (node is JsonObject obj && !obj.ContainsKey("idempotencyKey"))
+            // Newtonsoft equivalent of System.Text.Json's
+            // SerializeToNode: round-trip through JObject using the
+            // configured settings (camelCase + ignore-null), then
+            // attach the idempotency key if it isn't already there.
+            var serializer = JsonSerializer.Create(JsonOptions);
+            var node = JToken.FromObject(body, serializer);
+            if (node is JObject obj && obj["idempotencyKey"] == null)
             {
-                obj["idempotencyKey"] = JsonValue.Create(key);
+                obj["idempotencyKey"] = key;
             }
             return node;
         }
@@ -569,17 +575,18 @@ namespace Kraty
             if (string.IsNullOrWhiteSpace(text)) return null;
             try
             {
-                using var doc = JsonDocument.Parse(text);
-                if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
-                if (!doc.RootElement.TryGetProperty("error", out var err)) return null;
-                if (err.ValueKind != JsonValueKind.Object) return null;
-                var code = err.TryGetProperty("code", out var c) ? c.GetString() : null;
-                var msg = err.TryGetProperty("message", out var m) ? m.GetString() : null;
+                var root = JToken.Parse(text);
+                if (root.Type != JTokenType.Object) return null;
+                var err = root["error"];
+                if (err == null || err.Type != JTokenType.Object) return null;
+                var code = (string?)err["code"];
+                var msg = (string?)err["message"];
                 if (string.IsNullOrEmpty(code)) return null;
                 Dictionary<string, object?>? details = null;
-                if (err.TryGetProperty("details", out var d))
+                var d = err["details"];
+                if (d != null)
                 {
-                    details = new Dictionary<string, object?> { ["raw"] = d.ToString() };
+                    details = new Dictionary<string, object?> { ["raw"] = d.ToString(Formatting.None) };
                 }
                 return new KratyErrorPayload(code!, msg ?? string.Empty, details);
             }

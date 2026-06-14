@@ -1,42 +1,48 @@
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Kraty
 {
     /// <summary>
     /// Public response types for the <c>/sdk/v1</c> surface, mirroring
     /// the OpenAPI spec at <c>apps/backend/openapi.json</c>. Plain DTOs
-    /// — System.Text.Json deserializes into them via the
-    /// <see cref="JsonPropertyNameAttribute"/> hints.
+    /// — Newtonsoft.Json deserializes into them via the
+    /// <see cref="JsonPropertyAttribute"/> hints.
+    ///
+    /// LocalizedString-ish fields (<c>name</c>, <c>description</c>) and
+    /// free-form metadata bags are typed as <c>JToken</c> /
+    /// <c>Dictionary&lt;string, JToken&gt;</c> so the consumer can
+    /// inspect the shape without the SDK locking it down prematurely.
     /// </summary>
 
     public sealed class Attempt
     {
-        [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
-        [JsonPropertyName("eventId")] public string EventId { get; set; } = string.Empty;
-        [JsonPropertyName("eventWindowId")] public string EventWindowId { get; set; } = string.Empty;
-        [JsonPropertyName("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
-        [JsonPropertyName("playerId")] public string PlayerId { get; set; } = string.Empty;
-        [JsonPropertyName("startedAt")] public string StartedAt { get; set; } = string.Empty;
-        [JsonPropertyName("endsAt")] public string EndsAt { get; set; } = string.Empty;
-        [JsonPropertyName("completedAt")] public string? CompletedAt { get; set; }
-        [JsonPropertyName("metrics")] public Dictionary<string, double> Metrics { get; set; } = new();
-        [JsonPropertyName("metricsRaw")] public Dictionary<string, double> MetricsRaw { get; set; } = new();
-        [JsonPropertyName("score")] public double Score { get; set; }
+        [JsonProperty("id")] public string Id { get; set; } = string.Empty;
+        [JsonProperty("eventId")] public string EventId { get; set; } = string.Empty;
+        [JsonProperty("eventWindowId")] public string EventWindowId { get; set; } = string.Empty;
+        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        [JsonProperty("playerId")] public string PlayerId { get; set; } = string.Empty;
+        [JsonProperty("startedAt")] public string StartedAt { get; set; } = string.Empty;
+        [JsonProperty("endsAt")] public string EndsAt { get; set; } = string.Empty;
+        [JsonProperty("completedAt")] public string? CompletedAt { get; set; }
+        [JsonProperty("metrics")] public Dictionary<string, double> Metrics { get; set; } = new();
+        [JsonProperty("metricsRaw")] public Dictionary<string, double> MetricsRaw { get; set; } = new();
+        [JsonProperty("score")] public double Score { get; set; }
         /// <summary>One of <c>in_progress</c>, <c>completed</c>, <c>expired</c>, <c>force_completed</c>.</summary>
-        [JsonPropertyName("status")] public string Status { get; set; } = string.Empty;
+        [JsonProperty("status")] public string Status { get; set; } = string.Empty;
     }
 
     public sealed class StartAttemptResponse
     {
-        [JsonPropertyName("attempt")] public Attempt Attempt { get; set; } = new();
-        [JsonPropertyName("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
-        [JsonPropertyName("windowEndsAt")] public string WindowEndsAt { get; set; } = string.Empty;
+        [JsonProperty("attempt")] public Attempt Attempt { get; set; } = new();
+        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        [JsonProperty("windowEndsAt")] public string WindowEndsAt { get; set; } = string.Empty;
     }
 
     public sealed class ProgressResult
     {
-        [JsonPropertyName("attempt")] public Attempt Attempt { get; set; } = new();
+        [JsonProperty("attempt")] public Attempt Attempt { get; set; } = new();
 
         /// <summary>
         /// Milestones whose threshold was crossed by THIS progress
@@ -45,7 +51,7 @@ namespace Kraty
         /// entry's <c>Grants</c> array carries the concrete payout
         /// rows in the same shape <c>GET /grants/pending</c> returns.
         /// </summary>
-        [JsonPropertyName("milestonesFired")] public List<MilestoneFired> MilestonesFired { get; set; } = new();
+        [JsonProperty("milestonesFired")] public List<MilestoneFired> MilestonesFired { get; set; } = new();
     }
 
     /// <summary>
@@ -57,8 +63,8 @@ namespace Kraty
     /// </summary>
     public sealed class MilestoneFired
     {
-        [JsonPropertyName("key")] public string Key { get; set; } = string.Empty;
-        [JsonPropertyName("grants")] public List<Grant> Grants { get; set; } = new();
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
+        [JsonProperty("grants")] public List<Grant> Grants { get; set; } = new();
     }
 
     /// <summary>
@@ -67,8 +73,8 @@ namespace Kraty
     /// </summary>
     public sealed class EntryCostCurrency
     {
-        [JsonPropertyName("key")] public string Key { get; set; } = string.Empty;
-        [JsonPropertyName("amount")] public int Amount { get; set; }
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
+        [JsonProperty("amount")] public int Amount { get; set; }
     }
 
     /// <summary>
@@ -77,8 +83,8 @@ namespace Kraty
     /// </summary>
     public sealed class EntryCostItem
     {
-        [JsonPropertyName("key")] public string Key { get; set; } = string.Empty;
-        [JsonPropertyName("quantity")] public int Quantity { get; set; }
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
+        [JsonProperty("quantity")] public int Quantity { get; set; }
     }
 
     /// <summary>
@@ -90,8 +96,8 @@ namespace Kraty
     /// </summary>
     public sealed class EntryCost
     {
-        [JsonPropertyName("currencies")] public List<EntryCostCurrency> Currencies { get; set; } = new();
-        [JsonPropertyName("items")] public List<EntryCostItem> Items { get; set; } = new();
+        [JsonProperty("currencies")] public List<EntryCostCurrency> Currencies { get; set; } = new();
+        [JsonProperty("items")] public List<EntryCostItem> Items { get; set; } = new();
 
         [JsonIgnore]
         public bool IsEmpty => (Currencies?.Count ?? 0) == 0 && (Items?.Count ?? 0) == 0;
@@ -106,19 +112,19 @@ namespace Kraty
     public sealed class RewardEntryPreview
     {
         /// <summary>One of <c>currency</c> / <c>item</c> / <c>crate</c>.</summary>
-        [JsonPropertyName("type")] public string Type { get; set; } = string.Empty;
+        [JsonProperty("type")] public string Type { get; set; } = string.Empty;
         /// <summary>Set when <see cref="Type"/> is <c>currency</c>.</summary>
-        [JsonPropertyName("currencyKey")] public string? CurrencyKey { get; set; }
+        [JsonProperty("currencyKey")] public string? CurrencyKey { get; set; }
         /// <summary>Set when <see cref="Type"/> is <c>currency</c>.</summary>
-        [JsonPropertyName("amount")] public double? Amount { get; set; }
+        [JsonProperty("amount")] public double? Amount { get; set; }
         /// <summary>Set when <see cref="Type"/> is <c>item</c>.</summary>
-        [JsonPropertyName("itemKey")] public string? ItemKey { get; set; }
+        [JsonProperty("itemKey")] public string? ItemKey { get; set; }
         /// <summary>Set when <see cref="Type"/> is <c>crate</c>.</summary>
-        [JsonPropertyName("crateItemKey")] public string? CrateItemKey { get; set; }
+        [JsonProperty("crateItemKey")] public string? CrateItemKey { get; set; }
         /// <summary>Set when <see cref="Type"/> is <c>item</c> or <c>crate</c>.</summary>
-        [JsonPropertyName("quantity")] public int? Quantity { get; set; }
+        [JsonProperty("quantity")] public int? Quantity { get; set; }
         /// <summary>Optional per-item parameters (used by <c>item</c> entries).</summary>
-        [JsonPropertyName("parameters")] public Dictionary<string, System.Text.Json.JsonElement>? Parameters { get; set; }
+        [JsonProperty("parameters")] public Dictionary<string, JToken>? Parameters { get; set; }
     }
 
     /// <summary>
@@ -129,10 +135,10 @@ namespace Kraty
     /// </summary>
     public sealed class RewardBundlePreview
     {
-        [JsonPropertyName("key")] public string Key { get; set; } = string.Empty;
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
         /// <summary>LocalizedString.</summary>
-        [JsonPropertyName("name")] public System.Text.Json.JsonElement Name { get; set; }
-        [JsonPropertyName("entries")] public List<RewardEntryPreview> Entries { get; set; } = new();
+        [JsonProperty("name")] public JToken? Name { get; set; }
+        [JsonProperty("entries")] public List<RewardEntryPreview> Entries { get; set; } = new();
     }
 
     /// <summary>
@@ -143,18 +149,18 @@ namespace Kraty
     /// </summary>
     public sealed class MilestoneRewardPreview
     {
-        [JsonPropertyName("key")] public string Key { get; set; } = string.Empty;
-        [JsonPropertyName("metricKey")] public string MetricKey { get; set; } = string.Empty;
-        [JsonPropertyName("threshold")] public double Threshold { get; set; }
-        [JsonPropertyName("entries")] public List<RewardEntryPreview> Entries { get; set; } = new();
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
+        [JsonProperty("metricKey")] public string MetricKey { get; set; } = string.Empty;
+        [JsonProperty("threshold")] public double Threshold { get; set; }
+        [JsonProperty("entries")] public List<RewardEntryPreview> Entries { get; set; } = new();
     }
 
     /// <summary>One tier in a <c>rank_scaled</c> reward policy.</summary>
     public sealed class RewardPolicyTier
     {
-        [JsonPropertyName("fromRank")] public int FromRank { get; set; }
-        [JsonPropertyName("toRank")] public int ToRank { get; set; }
-        [JsonPropertyName("bundle")] public RewardBundlePreview? Bundle { get; set; }
+        [JsonProperty("fromRank")] public int FromRank { get; set; }
+        [JsonProperty("toRank")] public int ToRank { get; set; }
+        [JsonProperty("bundle")] public RewardBundlePreview? Bundle { get; set; }
     }
 
     /// <summary>
@@ -169,38 +175,38 @@ namespace Kraty
     /// </summary>
     public sealed class RewardPolicySummary
     {
-        [JsonPropertyName("type")] public string Type { get; set; } = "none";
+        [JsonProperty("type")] public string Type { get; set; } = "none";
         /// <summary>Set when <see cref="Type"/> is <c>fixed_bundle</c>.</summary>
-        [JsonPropertyName("bundle")] public RewardBundlePreview? Bundle { get; set; }
+        [JsonProperty("bundle")] public RewardBundlePreview? Bundle { get; set; }
         /// <summary>Set when <see cref="Type"/> is <c>rank_scaled</c>.</summary>
-        [JsonPropertyName("tiers")] public List<RewardPolicyTier>? Tiers { get; set; }
+        [JsonProperty("tiers")] public List<RewardPolicyTier>? Tiers { get; set; }
         /// <summary>Set when <see cref="Type"/> is <c>shared_pool</c>.</summary>
-        [JsonPropertyName("pool")] public double? Pool { get; set; }
+        [JsonProperty("pool")] public double? Pool { get; set; }
         /// <summary>Set when <see cref="Type"/> is <c>shared_pool</c>.</summary>
-        [JsonPropertyName("currencyKey")] public string? CurrencyKey { get; set; }
+        [JsonProperty("currencyKey")] public string? CurrencyKey { get; set; }
     }
 
     public sealed class EventListing
     {
-        [JsonPropertyName("eventKey")] public string EventKey { get; set; } = string.Empty;
+        [JsonProperty("eventKey")] public string EventKey { get; set; } = string.Empty;
         /// <summary>
         /// LocalizedString — string or object, see backend docs/02 § English-only v1.
-        /// Kept as <see cref="System.Text.Json.JsonElement"/> so the consumer can
+        /// Kept as <see cref="JToken"/> so the consumer can
         /// inspect the shape without the SDK locking it down prematurely.
         /// </summary>
-        [JsonPropertyName("name")] public System.Text.Json.JsonElement Name { get; set; }
-        [JsonPropertyName("windowId")] public string WindowId { get; set; } = string.Empty;
-        [JsonPropertyName("startsAt")] public string StartsAt { get; set; } = string.Empty;
-        [JsonPropertyName("endsAt")] public string EndsAt { get; set; } = string.Empty;
-        [JsonPropertyName("leaderboardId")] public string? LeaderboardId { get; set; }
-        [JsonPropertyName("currentAttemptId")] public string? CurrentAttemptId { get; set; }
+        [JsonProperty("name")] public JToken? Name { get; set; }
+        [JsonProperty("windowId")] public string WindowId { get; set; } = string.Empty;
+        [JsonProperty("startsAt")] public string StartsAt { get; set; } = string.Empty;
+        [JsonProperty("endsAt")] public string EndsAt { get; set; } = string.Empty;
+        [JsonProperty("leaderboardId")] public string? LeaderboardId { get; set; }
+        [JsonProperty("currentAttemptId")] public string? CurrentAttemptId { get; set; }
 
         /// <summary>
         /// <c>single_metric</c> / <c>multi_metric</c> (and any future
         /// event-type registry entries). Lets the SDK consumer pick
         /// the right UI without a hard-coded per-event catalog.
         /// </summary>
-        [JsonPropertyName("type")] public string Type { get; set; } = "single_metric";
+        [JsonProperty("type")] public string Type { get; set; } = "single_metric";
 
         /// <summary>
         /// <c>global</c> / <c>global_segmented</c> / <c>grouped</c> /
@@ -208,22 +214,22 @@ namespace Kraty
         /// tells the consumer whether to expect <c>lobby_forming</c>
         /// on <see cref="EventsClient.StartAsync"/>.
         /// </summary>
-        [JsonPropertyName("leaderboardMode")] public string LeaderboardMode { get; set; } = "global";
+        [JsonProperty("leaderboardMode")] public string LeaderboardMode { get; set; } = "global";
 
         /// <summary>
         /// Free-form metric definitions from the event row (key,
         /// target, cap, scoreWeight, …) — same shape the server stores.
         /// </summary>
-        [JsonPropertyName("metrics")] public List<Dictionary<string, System.Text.Json.JsonElement>> Metrics { get; set; } = new();
+        [JsonProperty("metrics")] public List<Dictionary<string, JToken>> Metrics { get; set; } = new();
 
         /// <summary>Player-condition tree — null when there's no join gate.</summary>
-        [JsonPropertyName("entryRequirement")] public Dictionary<string, System.Text.Json.JsonElement>? EntryRequirement { get; set; }
+        [JsonProperty("entryRequirement")] public Dictionary<string, JToken>? EntryRequirement { get; set; }
 
         /// <summary>
         /// Cost paid on attempt start. <c>null</c> (and an empty
         /// <see cref="EntryCost"/>) both mean "free to enter".
         /// </summary>
-        [JsonPropertyName("entryCost")] public EntryCost? EntryCost { get; set; }
+        [JsonProperty("entryCost")] public EntryCost? EntryCost { get; set; }
 
         /// <summary>
         /// Studio-defined free-form blob. Event-level metadata merged
@@ -231,13 +237,13 @@ namespace Kraty
         /// for UI hints — banner image keys, theme colors,
         /// special-event copy.
         /// </summary>
-        [JsonPropertyName("metadata")] public Dictionary<string, System.Text.Json.JsonElement> Metadata { get; set; } = new();
+        [JsonProperty("metadata")] public Dictionary<string, JToken> Metadata { get; set; } = new();
 
         /// <summary>Mid-attempt milestone rewards. Empty list when none configured.</summary>
-        [JsonPropertyName("milestoneRewards")] public List<MilestoneRewardPreview> MilestoneRewards { get; set; } = new();
+        [JsonProperty("milestoneRewards")] public List<MilestoneRewardPreview> MilestoneRewards { get; set; } = new();
 
         /// <summary>Reward policy summary with inline bundle previews.</summary>
-        [JsonPropertyName("rewardPolicy")] public RewardPolicySummary? RewardPolicy { get; set; }
+        [JsonProperty("rewardPolicy")] public RewardPolicySummary? RewardPolicy { get; set; }
 
         /// <summary>
         /// True when <see cref="LeaderboardMode"/> is <c>lobby_matched</c>.
@@ -254,16 +260,16 @@ namespace Kraty
     /// </summary>
     public sealed class CatalogItem
     {
-        [JsonPropertyName("key")] public string Key { get; set; } = string.Empty;
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
         /// <summary>LocalizedString.</summary>
-        [JsonPropertyName("name")] public System.Text.Json.JsonElement Name { get; set; }
-        [JsonPropertyName("iconUrl")] public string? IconUrl { get; set; }
+        [JsonProperty("name")] public JToken? Name { get; set; }
+        [JsonProperty("iconUrl")] public string? IconUrl { get; set; }
         /// <summary>LocalizedString.</summary>
-        [JsonPropertyName("description")] public System.Text.Json.JsonElement Description { get; set; }
-        [JsonPropertyName("itemTypeKey")] public string ItemTypeKey { get; set; } = string.Empty;
-        [JsonPropertyName("tags")] public List<string> Tags { get; set; } = new();
-        [JsonPropertyName("rarity")] public string? Rarity { get; set; }
-        [JsonPropertyName("attributes")] public Dictionary<string, System.Text.Json.JsonElement> Attributes { get; set; } = new();
+        [JsonProperty("description")] public JToken? Description { get; set; }
+        [JsonProperty("itemTypeKey")] public string ItemTypeKey { get; set; } = string.Empty;
+        [JsonProperty("tags")] public List<string> Tags { get; set; } = new();
+        [JsonProperty("rarity")] public string? Rarity { get; set; }
+        [JsonProperty("attributes")] public Dictionary<string, JToken> Attributes { get; set; } = new();
     }
 
     /// <summary>
@@ -273,82 +279,82 @@ namespace Kraty
     /// </summary>
     public sealed class CatalogCurrency
     {
-        [JsonPropertyName("key")] public string Key { get; set; } = string.Empty;
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
         /// <summary>LocalizedString.</summary>
-        [JsonPropertyName("name")] public System.Text.Json.JsonElement Name { get; set; }
-        [JsonPropertyName("iconUrl")] public string? IconUrl { get; set; }
+        [JsonProperty("name")] public JToken? Name { get; set; }
+        [JsonProperty("iconUrl")] public string? IconUrl { get; set; }
         /// <summary>LocalizedString.</summary>
-        [JsonPropertyName("description")] public System.Text.Json.JsonElement Description { get; set; }
-        [JsonPropertyName("kind")] public string Kind { get; set; } = "currency";
+        [JsonProperty("description")] public JToken? Description { get; set; }
+        [JsonProperty("kind")] public string Kind { get; set; } = "currency";
     }
 
     public sealed class Catalog
     {
-        [JsonPropertyName("items")] public List<CatalogItem> Items { get; set; } = new();
-        [JsonPropertyName("currencies")] public List<CatalogCurrency> Currencies { get; set; } = new();
+        [JsonProperty("items")] public List<CatalogItem> Items { get; set; } = new();
+        [JsonProperty("currencies")] public List<CatalogCurrency> Currencies { get; set; } = new();
     }
 
     public sealed class LeaderboardEntry
     {
-        [JsonPropertyName("participantId")] public string ParticipantId { get; set; } = string.Empty;
+        [JsonProperty("participantId")] public string ParticipantId { get; set; } = string.Empty;
         /// <summary>One of <c>player</c>, <c>bot</c>.</summary>
-        [JsonPropertyName("kind")] public string Kind { get; set; } = string.Empty;
-        [JsonPropertyName("name")] public string? Name { get; set; }
-        [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; set; }
-        [JsonPropertyName("score")] public double Score { get; set; }
-        [JsonPropertyName("rank")] public int Rank { get; set; }
+        [JsonProperty("kind")] public string Kind { get; set; } = string.Empty;
+        [JsonProperty("name")] public string? Name { get; set; }
+        [JsonProperty("avatarUrl")] public string? AvatarUrl { get; set; }
+        [JsonProperty("score")] public double Score { get; set; }
+        [JsonProperty("rank")] public int Rank { get; set; }
     }
 
     public sealed class LeaderboardSelf
     {
-        [JsonPropertyName("rank")] public int Rank { get; set; }
-        [JsonPropertyName("score")] public double Score { get; set; }
+        [JsonProperty("rank")] public int Rank { get; set; }
+        [JsonProperty("score")] public double Score { get; set; }
     }
 
     public sealed class Leaderboard
     {
-        [JsonPropertyName("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
-        [JsonPropertyName("mode")] public string Mode { get; set; } = string.Empty;
-        [JsonPropertyName("finalized")] public bool Finalized { get; set; }
-        [JsonPropertyName("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
-        [JsonPropertyName("self")] public LeaderboardSelf? Self { get; set; }
+        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        [JsonProperty("mode")] public string Mode { get; set; } = string.Empty;
+        [JsonProperty("finalized")] public bool Finalized { get; set; }
+        [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
+        [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
     }
 
     public sealed class Grant
     {
-        [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
+        [JsonProperty("id")] public string Id { get; set; } = string.Empty;
         /// <summary>One of <c>reward</c>, <c>crate</c>.</summary>
-        [JsonPropertyName("kind")] public string Kind { get; set; } = string.Empty;
-        [JsonPropertyName("contents")] public Dictionary<string, System.Text.Json.JsonElement> Contents { get; set; } = new();
-        [JsonPropertyName("sourceKind")] public string SourceKind { get; set; } = string.Empty;
-        [JsonPropertyName("sourceRefId")] public string? SourceRefId { get; set; }
-        [JsonPropertyName("parentGrantId")] public string? ParentGrantId { get; set; }
+        [JsonProperty("kind")] public string Kind { get; set; } = string.Empty;
+        [JsonProperty("contents")] public Dictionary<string, JToken> Contents { get; set; } = new();
+        [JsonProperty("sourceKind")] public string SourceKind { get; set; } = string.Empty;
+        [JsonProperty("sourceRefId")] public string? SourceRefId { get; set; }
+        [JsonProperty("parentGrantId")] public string? ParentGrantId { get; set; }
         /// <summary>One of <c>pending</c>, <c>claimed</c>, <c>expired</c>.</summary>
-        [JsonPropertyName("status")] public string Status { get; set; } = string.Empty;
-        [JsonPropertyName("rolledAt")] public string? RolledAt { get; set; }
-        [JsonPropertyName("claimedAt")] public string? ClaimedAt { get; set; }
-        [JsonPropertyName("expiresAt")] public string? ExpiresAt { get; set; }
-        [JsonPropertyName("createdAt")] public string CreatedAt { get; set; } = string.Empty;
+        [JsonProperty("status")] public string Status { get; set; } = string.Empty;
+        [JsonProperty("rolledAt")] public string? RolledAt { get; set; }
+        [JsonProperty("claimedAt")] public string? ClaimedAt { get; set; }
+        [JsonProperty("expiresAt")] public string? ExpiresAt { get; set; }
+        [JsonProperty("createdAt")] public string CreatedAt { get; set; } = string.Empty;
     }
 
     public sealed class OpenCrateResponse
     {
-        [JsonPropertyName("crate")] public Grant Crate { get; set; } = new();
-        [JsonPropertyName("contents")] public Grant Contents { get; set; } = new();
+        [JsonProperty("crate")] public Grant Crate { get; set; } = new();
+        [JsonProperty("contents")] public Grant Contents { get; set; } = new();
     }
 
     public sealed class Lobby
     {
-        [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
-        [JsonPropertyName("eventId")] public string EventId { get; set; } = string.Empty;
-        [JsonPropertyName("eventWindowId")] public string EventWindowId { get; set; } = string.Empty;
-        [JsonPropertyName("leaderboardId")] public string? LeaderboardId { get; set; }
-        [JsonPropertyName("mode")] public string Mode { get; set; } = string.Empty;
+        [JsonProperty("id")] public string Id { get; set; } = string.Empty;
+        [JsonProperty("eventId")] public string EventId { get; set; } = string.Empty;
+        [JsonProperty("eventWindowId")] public string EventWindowId { get; set; } = string.Empty;
+        [JsonProperty("leaderboardId")] public string? LeaderboardId { get; set; }
+        [JsonProperty("mode")] public string Mode { get; set; } = string.Empty;
         /// <summary>One of <c>forming</c>, <c>active</c>, <c>closed</c>.</summary>
-        [JsonPropertyName("status")] public string Status { get; set; } = string.Empty;
-        [JsonPropertyName("capacity")] public int Capacity { get; set; }
-        [JsonPropertyName("fillBy")] public string? FillBy { get; set; }
-        [JsonPropertyName("participantCount")] public int ParticipantCount { get; set; }
+        [JsonProperty("status")] public string Status { get; set; } = string.Empty;
+        [JsonProperty("capacity")] public int Capacity { get; set; }
+        [JsonProperty("fillBy")] public string? FillBy { get; set; }
+        [JsonProperty("participantCount")] public int ParticipantCount { get; set; }
 
         /// <summary>
         /// Projected bot count at read time — derived server-side from
@@ -357,10 +363,10 @@ namespace Kraty
         /// renders <c>ParticipantCount + BotSlots</c> filled cells out
         /// of <c>Capacity</c> for a smooth fill animation.
         /// </summary>
-        [JsonPropertyName("botSlots")] public int BotSlots { get; set; }
+        [JsonProperty("botSlots")] public int BotSlots { get; set; }
 
-        [JsonPropertyName("startedAt")] public string? StartedAt { get; set; }
-        [JsonPropertyName("endsAt")] public string? EndsAt { get; set; }
+        [JsonProperty("startedAt")] public string? StartedAt { get; set; }
+        [JsonProperty("endsAt")] public string? EndsAt { get; set; }
 
         /// <summary>
         /// Total filled cells (humans + projected bots). Capped at
@@ -387,11 +393,11 @@ namespace Kraty
     public sealed class ProgressInput
     {
         /// <summary><c>set</c> writes the value as the new metric; <c>increment</c> adds.</summary>
-        [JsonPropertyName("mode")] public string Mode { get; set; } = "set";
-        [JsonPropertyName("metricValue")] public double? MetricValue { get; set; }
-        [JsonPropertyName("metrics")] public Dictionary<string, double>? Metrics { get; set; }
-        [JsonPropertyName("occurredAt")] public string? OccurredAt { get; set; }
-        [JsonPropertyName("idempotencyKey")] public string? IdempotencyKey { get; set; }
+        [JsonProperty("mode")] public string Mode { get; set; } = "set";
+        [JsonProperty("metricValue")] public double? MetricValue { get; set; }
+        [JsonProperty("metrics")] public Dictionary<string, double>? Metrics { get; set; }
+        [JsonProperty("occurredAt")] public string? OccurredAt { get; set; }
+        [JsonProperty("idempotencyKey")] public string? IdempotencyKey { get; set; }
     }
 
     /// <summary>
@@ -418,11 +424,11 @@ namespace Kraty
     /// </summary>
     public sealed class PlayerRegistration
     {
-        [JsonPropertyName("playerId")] public string PlayerId { get; set; } = string.Empty;
-        [JsonPropertyName("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
-        [JsonPropertyName("secret")] public string Secret { get; set; } = string.Empty;
-        [JsonPropertyName("secretPrefix")] public string? SecretPrefix { get; set; }
-        [JsonPropertyName("registeredAt")] public string? RegisteredAt { get; set; }
+        [JsonProperty("playerId")] public string PlayerId { get; set; } = string.Empty;
+        [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
+        [JsonProperty("secret")] public string Secret { get; set; } = string.Empty;
+        [JsonProperty("secretPrefix")] public string? SecretPrefix { get; set; }
+        [JsonProperty("registeredAt")] public string? RegisteredAt { get; set; }
     }
 
     /// <summary>
@@ -435,11 +441,11 @@ namespace Kraty
     /// </summary>
     public sealed class PlayerItemHolding
     {
-        [JsonPropertyName("itemKey")] public string ItemKey { get; set; } = string.Empty;
-        [JsonPropertyName("quantity")] public int Quantity { get; set; }
-        [JsonPropertyName("metadata")] public Dictionary<string, System.Text.Json.JsonElement> Metadata { get; set; } = new();
-        [JsonPropertyName("createdAt")] public string CreatedAt { get; set; } = string.Empty;
-        [JsonPropertyName("updatedAt")] public string UpdatedAt { get; set; } = string.Empty;
+        [JsonProperty("itemKey")] public string ItemKey { get; set; } = string.Empty;
+        [JsonProperty("quantity")] public int Quantity { get; set; }
+        [JsonProperty("metadata")] public Dictionary<string, JToken> Metadata { get; set; } = new();
+        [JsonProperty("createdAt")] public string CreatedAt { get; set; } = string.Empty;
+        [JsonProperty("updatedAt")] public string UpdatedAt { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -450,11 +456,11 @@ namespace Kraty
     /// </summary>
     public sealed class PlayerWalletHolding
     {
-        [JsonPropertyName("economyKey")] public string EconomyKey { get; set; } = string.Empty;
-        [JsonPropertyName("balance")] public int Balance { get; set; }
-        [JsonPropertyName("metadata")] public Dictionary<string, System.Text.Json.JsonElement> Metadata { get; set; } = new();
-        [JsonPropertyName("createdAt")] public string CreatedAt { get; set; } = string.Empty;
-        [JsonPropertyName("updatedAt")] public string UpdatedAt { get; set; } = string.Empty;
+        [JsonProperty("economyKey")] public string EconomyKey { get; set; } = string.Empty;
+        [JsonProperty("balance")] public int Balance { get; set; }
+        [JsonProperty("metadata")] public Dictionary<string, JToken> Metadata { get; set; } = new();
+        [JsonProperty("createdAt")] public string CreatedAt { get; set; } = string.Empty;
+        [JsonProperty("updatedAt")] public string UpdatedAt { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -469,16 +475,16 @@ namespace Kraty
         /// Positive integer — the SDK does NOT enforce; the server
         /// validates and returns 400 on zero / negative.
         /// </summary>
-        [JsonPropertyName("quantity")] public int Quantity { get; set; }
+        [JsonProperty("quantity")] public int Quantity { get; set; }
 
         /// <summary>
         /// Free-form tag persisted on the ledger row only. Surfaces in
         /// the admin audit screen.
         /// </summary>
-        [JsonPropertyName("reason")] public string? Reason { get; set; }
+        [JsonProperty("reason")] public string? Reason { get; set; }
 
         /// <summary>Optional override — leave null to let the client auto-stamp one.</summary>
-        [JsonPropertyName("idempotencyKey")] public string? IdempotencyKey { get; set; }
+        [JsonProperty("idempotencyKey")] public string? IdempotencyKey { get; set; }
     }
 
     /// <summary>
@@ -489,9 +495,9 @@ namespace Kraty
     /// </summary>
     public sealed class ConsumeItemResult
     {
-        [JsonPropertyName("itemKey")] public string ItemKey { get; set; } = string.Empty;
-        [JsonPropertyName("quantity")] public int Quantity { get; set; }
-        [JsonPropertyName("applied")] public bool Applied { get; set; }
+        [JsonProperty("itemKey")] public string ItemKey { get; set; } = string.Empty;
+        [JsonProperty("quantity")] public int Quantity { get; set; }
+        [JsonProperty("applied")] public bool Applied { get; set; }
     }
 
     /// <summary>
@@ -503,16 +509,16 @@ namespace Kraty
     /// </summary>
     public sealed class DebitWalletInput
     {
-        [JsonPropertyName("amount")] public int Amount { get; set; }
-        [JsonPropertyName("reason")] public string? Reason { get; set; }
-        [JsonPropertyName("idempotencyKey")] public string? IdempotencyKey { get; set; }
+        [JsonProperty("amount")] public int Amount { get; set; }
+        [JsonProperty("reason")] public string? Reason { get; set; }
+        [JsonProperty("idempotencyKey")] public string? IdempotencyKey { get; set; }
     }
 
     public sealed class DebitWalletResult
     {
-        [JsonPropertyName("economyKey")] public string EconomyKey { get; set; } = string.Empty;
-        [JsonPropertyName("balance")] public int Balance { get; set; }
-        [JsonPropertyName("applied")] public bool Applied { get; set; }
+        [JsonProperty("economyKey")] public string EconomyKey { get; set; } = string.Empty;
+        [JsonProperty("balance")] public int Balance { get; set; }
+        [JsonProperty("applied")] public bool Applied { get; set; }
     }
 
     /// <summary>
@@ -521,7 +527,7 @@ namespace Kraty
     /// </summary>
     internal sealed class InventoryListEnvelope
     {
-        [JsonPropertyName("items")] public List<PlayerItemHolding>? Items { get; set; }
+        [JsonProperty("items")] public List<PlayerItemHolding>? Items { get; set; }
     }
 
     /// <summary>
@@ -530,7 +536,7 @@ namespace Kraty
     /// </summary>
     internal sealed class WalletListEnvelope
     {
-        [JsonPropertyName("wallet")] public List<PlayerWalletHolding>? Wallet { get; set; }
+        [JsonProperty("wallet")] public List<PlayerWalletHolding>? Wallet { get; set; }
     }
 
     /// <summary>
@@ -539,6 +545,6 @@ namespace Kraty
     /// </summary>
     internal sealed class DataEnvelope<T>
     {
-        [JsonPropertyName("data")] public T? Data { get; set; }
+        [JsonProperty("data")] public T? Data { get; set; }
     }
 }

@@ -4,6 +4,36 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
+## [0.1.1] — 2026-06-15
+
+### Changed (BREAKING)
+
+- **JSON layer ported from `System.Text.Json` to Newtonsoft.Json**
+  (Json.NET) so the package actually works in Unity. Unity does not
+  ship `System.Text.Json`, and `System.Text.Json`'s reflection path
+  is stripped by IL2CPP on iOS / Android / WebGL — the previous SDK
+  compiled in the editor but crashed on first deserialize in a
+  shipped build.
+- `package.json` now declares a dependency on
+  `com.unity.nuget.newtonsoft-json` (3.2.1) — UPM auto-installs it
+  on first import. The runtime asmdef references
+  `Unity.Nuget.Newtonsoft.Json`.
+- Public API types previously typed as `System.Text.Json.JsonElement`
+  (the LocalizedString-ish `Name` / `Description` fields on
+  `EventListing`, `CatalogItem`, `CatalogCurrency`,
+  `RewardBundlePreview`; the free-form `Metadata` / `Attributes` /
+  `Parameters` / `EntryRequirement` bags) now use
+  `Newtonsoft.Json.Linq.JToken`. **Migration:** swap
+  `value.GetString()` → `(string?)value`, `.GetInt32()` →
+  `(int)value`, `.GetBoolean()` → `(bool)value`, or use
+  `value.Value<T>()` / `value.ToObject<T>()` for richer
+  conversions. The localized `Name` fields are now declared
+  `JToken?` because the wire format may legitimately omit them.
+- Internal `KratyClient.JsonSerializerOptions` getter renamed to
+  `JsonSerializerSettings` and returns Newtonsoft's
+  `JsonSerializerSettings` type — only consumed by the SSE stream
+  helper, not in the public API surface.
+
 ## [Unreleased]
 
 ### Added

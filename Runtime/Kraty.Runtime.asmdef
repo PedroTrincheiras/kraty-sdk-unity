@@ -1,7 +1,9 @@
 {
     "name": "Kraty.SDK",
     "rootNamespace": "Kraty",
-    "references": [],
+    "references": [
+        "Unity.Nuget.Newtonsoft.Json"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

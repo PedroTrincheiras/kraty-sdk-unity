@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Kraty
 {
@@ -28,9 +29,9 @@ namespace Kraty
     public sealed class LeaderboardStreamEvent
     {
         public string Kind { get; }
-        public Dictionary<string, JsonElement> Data { get; }
+        public Dictionary<string, JToken> Data { get; }
 
-        public LeaderboardStreamEvent(string kind, Dictionary<string, JsonElement> data)
+        public LeaderboardStreamEvent(string kind, Dictionary<string, JToken> data)
         {
             Kind = kind;
             Data = data;
@@ -162,16 +163,15 @@ namespace Kraty
                 Dictionary<string, object?>? details = null;
                 try
                 {
-                    using var doc = JsonDocument.Parse(bodyText);
-                    if (doc.RootElement.ValueKind == JsonValueKind.Object &&
-                        doc.RootElement.TryGetProperty("error", out var err) &&
-                        err.ValueKind == JsonValueKind.Object)
+                    var root = JToken.Parse(bodyText);
+                    if (root.Type == JTokenType.Object && root["error"] is JObject err)
                     {
-                        code = err.TryGetProperty("code", out var c) ? c.GetString() : null;
-                        message = err.TryGetProperty("message", out var m) ? m.GetString() : null;
-                        if (err.TryGetProperty("details", out var d))
+                        code = (string?)err["code"];
+                        message = (string?)err["message"];
+                        var d = err["details"];
+                        if (d != null)
                         {
-                            details = new Dictionary<string, object?> { ["raw"] = d.ToString() };
+                            details = new Dictionary<string, object?> { ["raw"] = d.ToString(Formatting.None) };
                         }
                     }
                 }
@@ -204,18 +204,18 @@ namespace Kraty
                         var raw = dataBuffer.ToString();
                         try
                         {
-                            using var doc = JsonDocument.Parse(raw);
-                            var dict = new Dictionary<string, JsonElement>();
-                            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                            var root = JToken.Parse(raw);
+                            var dict = new Dictionary<string, JToken>();
+                            if (root is JObject obj)
                             {
-                                foreach (var prop in doc.RootElement.EnumerateObject())
+                                foreach (var prop in obj.Properties())
                                 {
-                                    dict[prop.Name] = prop.Value.Clone();
+                                    dict[prop.Name] = prop.Value;
                                 }
                             }
                             else
                             {
-                                dict["value"] = doc.RootElement.Clone();
+                                dict["value"] = root;
                             }
                             self.EmitEvent(new LeaderboardStreamEvent(currentEvent, dict));
                         }

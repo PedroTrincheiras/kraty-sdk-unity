@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Http;
-using System.Text.Json;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -63,9 +64,9 @@ namespace Kraty.Tests
             await client.RequestAsync<DataEnvelope<Dictionary<string, object?>>>(
                 HttpMethod.Post, "/sdk/v1/foo", new Dictionary<string, object?> { ["x"] = 1 });
 
-            var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(handler.Calls[0].Body!)!;
-            Assert.Equal("idem-1", body["idempotencyKey"].GetString());
-            Assert.Equal(1, body["x"].GetInt32());
+            var body = JsonConvert.DeserializeObject<Dictionary<string, JToken>>(handler.Calls[0].Body!)!;
+            Assert.Equal("idem-1", (string?)body["idempotencyKey"]);
+            Assert.Equal(1, (int)body["x"]);
         }
 
         [Fact]
@@ -88,8 +89,8 @@ namespace Kraty.Tests
                 HttpMethod.Post, "/sdk/v1/foo",
                 new Dictionary<string, object?> { ["idempotencyKey"] = "caller-chose-me" }
             );
-            var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(handler.Calls[0].Body!)!;
-            Assert.Equal("caller-chose-me", body["idempotencyKey"].GetString());
+            var body = JsonConvert.DeserializeObject<Dictionary<string, JToken>>(handler.Calls[0].Body!)!;
+            Assert.Equal("caller-chose-me", (string?)body["idempotencyKey"]);
             Assert.Equal(0, counter); // auto-gen never fired
         }
 
@@ -112,10 +113,10 @@ namespace Kraty.Tests
                 .Push(503)
                 .Push(200, "{\"data\":{\"ok\":true}}");
             using var client = new KratyClient(BaseOpts(handler));
-            var res = await client.RequestAsync<DataEnvelope<Dictionary<string, JsonElement>>>(
+            var res = await client.RequestAsync<DataEnvelope<Dictionary<string, JToken>>>(
                 HttpMethod.Get, "/sdk/v1/ping");
             Assert.NotNull(res.Data);
-            Assert.True(res.Data!["ok"].GetBoolean());
+            Assert.True((bool)res.Data!["ok"]);
             Assert.Equal(2, handler.Calls.Count);
         }
 
@@ -134,8 +135,8 @@ namespace Kraty.Tests
             Assert.Equal(3, handler.Calls.Count);
             foreach (var call in handler.Calls)
             {
-                var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(call.Body!)!;
-                Assert.Equal("idem-1", body["idempotencyKey"].GetString());
+                var body = JsonConvert.DeserializeObject<Dictionary<string, JToken>>(call.Body!)!;
+                Assert.Equal("idem-1", (string?)body["idempotencyKey"]);
             }
             Assert.Equal(1, counter); // auto-gen fired once across all retries
         }
@@ -162,7 +163,7 @@ namespace Kraty.Tests
                 .Push(200, "{\"data\":{\"ok\":true}}");
             using var client = new KratyClient(BaseOpts(handler));
             var sw = Stopwatch.StartNew();
-            await client.RequestAsync<DataEnvelope<Dictionary<string, JsonElement>>>(HttpMethod.Get, "/sdk/v1/ping");
+            await client.RequestAsync<DataEnvelope<Dictionary<string, JToken>>>(HttpMethod.Get, "/sdk/v1/ping");
             sw.Stop();
             Assert.True(sw.ElapsedMilliseconds < 500);
             Assert.Equal(2, handler.Calls.Count);
@@ -245,9 +246,9 @@ namespace Kraty.Tests
                 ["country"] = "PT",
                 ["level"] = 7,
             }, @as: "alice");
-            var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(handler.Calls[0].Body!)!;
+            var body = JsonConvert.DeserializeObject<Dictionary<string, JToken>>(handler.Calls[0].Body!)!;
             Assert.True(body.ContainsKey("playerContext"));
-            Assert.Equal("idem-1", body["idempotencyKey"].GetString());
+            Assert.Equal("idem-1", (string?)body["idempotencyKey"]);
         }
 
         [Fact]

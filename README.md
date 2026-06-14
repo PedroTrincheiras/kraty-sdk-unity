@@ -1,10 +1,16 @@
-# @kraty/sdk-unity
+# app.kraty.sdk (Unity / C#)
 
-C# SDK for the Kraty game-events platform, targeting **Unity 2022 LTS+**
-and any modern .NET runtime. Built on .NET Standard 2.1 with no
-Unity-engine dependencies in the `Runtime/` tree — meaning the same
-package runs unmodified in standard .NET (CLI tools, server-side bots,
-test suites) without an editor.
+C# **client** SDK for the [Kraty](https://kraty.io) game-events
+platform, targeting **Unity 2022 LTS+** and any modern .NET runtime.
+Built on .NET Standard 2.1 with no Unity-engine dependencies in the
+`Runtime/` tree — meaning the same package runs unmodified in standard
+.NET (CLI tools, server-side bots, test suites) without an editor.
+
+> 📖 **Full reference + examples:** <https://kraty.io/docs/sdks/unity>
+>
+> The docs site has the complete guide — install via UPM, sign-in
+> patterns, every method, SSE streaming, error handling. This README
+> is just the elevator pitch.
 
 Auto-stamped idempotency keys on every write (preserved across
 retries), exponential retry with jitter, sealed error codes, SSE
