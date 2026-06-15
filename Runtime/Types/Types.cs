@@ -303,6 +303,16 @@ namespace Kraty
         [JsonProperty("avatarUrl")] public string? AvatarUrl { get; set; }
         [JsonProperty("score")] public double Score { get; set; }
         [JsonProperty("rank")] public int Rank { get; set; }
+        /// <summary>
+        /// <c>true</c> when this entry is the player calling the API
+        /// (resolved from the <c>externalId</c> passed via
+        /// <c>includeSelf</c>). Highlight rows off this rather than
+        /// matching <c>ParticipantId</c> to the external id yourself —
+        /// the server surfaces the internal player UUID, not the
+        /// external one. Always <c>false</c> on entries without a
+        /// self-context request, and on bot entries regardless.
+        /// </summary>
+        [JsonProperty("isSelf")] public bool IsSelf { get; set; }
     }
 
     public sealed class LeaderboardSelf
