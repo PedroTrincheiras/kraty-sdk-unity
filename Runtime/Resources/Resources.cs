@@ -152,6 +152,10 @@ namespace Kraty
         /// via the returned stream's <c>OnError</c> and re-call
         /// <see cref="LiveAsync"/> after a backoff if you want resumption.
         /// </para>
+        ///
+        /// <para>
+        /// Low-level — prefer <see cref="Subscribe"/> for game UIs.
+        /// </para>
         /// </summary>
         public Task<LeaderboardStream> LiveAsync(string leaderboardId, CancellationToken ct = default)
         {
@@ -163,6 +167,213 @@ namespace Kraty
                 _client.PlayerSecretForStreaming,
                 ct
             );
+        }
+
+        /// <summary>
+        /// High-level live leaderboard subscription. Composes:
+        ///
+        /// <list type="number">
+        ///   <item><description>the SSE stream from <see cref="LiveAsync"/> (real-time push for any score updates the server has published), AND</description></item>
+        ///   <item><description>a periodic background <see cref="ReadAsync"/> poll that nudges the server's lazy bot evaluator to advance bot scores, then dedupes the resulting deltas against the SSE feed.</description></item>
+        /// </list>
+        ///
+        /// <para>
+        /// Why both: bot scores climb on a schedule (per the event's
+        /// bot definitions) even when no player action would otherwise
+        /// trigger a server-side read. Without the background poll,
+        /// idle UIs never see bots tick. The SSE stream then carries
+        /// the resulting <c>score_update</c> events (the backend
+        /// publishes deltas on every lazy eval) so multiple subscribers
+        /// per leaderboard share one fan-out.
+        /// </para>
+        ///
+        /// <para>
+        /// The callback fires for every event from either source,
+        /// deduplicated so the same (participantId, score) tuple
+        /// doesn't surface twice. Callbacks fire on the HTTP
+        /// background thread — marshal to Unity's main thread before
+        /// touching <c>UnityEngine</c> APIs.
+        /// </para>
+        ///
+        /// <para>
+        /// Returns a handle whose <c>CancelAsync</c> / <c>Dispose</c>
+        /// tear down both transports.
+        /// </para>
+        /// </summary>
+        /// <param name="leaderboardId">The leaderboard to subscribe to.</param>
+        /// <param name="onEvent">Fires for every event from SSE or poll. Deduped on score.</param>
+        /// <param name="opts">Optional cadence + error callback.</param>
+        public LiveLeaderboardSubscription Subscribe(
+            string leaderboardId,
+            Action<LeaderboardStreamEvent> onEvent,
+            SubscribeOptions? opts = null
+        )
+        {
+            return LiveLeaderboardSubscription.Open(
+                this,
+                leaderboardId,
+                onEvent,
+                opts ?? new SubscribeOptions()
+            );
+        }
+    }
+
+    /// <summary>
+    /// Options for <see cref="LeaderboardsClient.Subscribe"/>.
+    /// </summary>
+    public sealed class SubscribeOptions
+    {
+        /// <summary>Background read cadence. Default 15000ms. Set to 0 to disable polling (SSE-only).</summary>
+        public int PollIntervalMs { get; set; } = 15000;
+        /// <summary>Optional — receives transport / parse errors. SSE errors are non-fatal; the poll keeps running.</summary>
+        public Action<Exception>? OnError { get; set; }
+    }
+
+    /// <summary>
+    /// Handle to a live leaderboard subscription opened via
+    /// <see cref="LeaderboardsClient.Subscribe"/>. Tears down both the
+    /// SSE stream and the background poll when cancelled / disposed.
+    /// </summary>
+    public sealed class LiveLeaderboardSubscription : IDisposable
+    {
+        private readonly CancellationTokenSource _cts = new();
+        private readonly LeaderboardsClient _leaderboards;
+        private readonly string _leaderboardId;
+        private readonly Action<LeaderboardStreamEvent> _onEvent;
+        private readonly Action<Exception> _onError;
+        private readonly int _pollIntervalMs;
+        private readonly Dictionary<string, double> _lastSurfacedScore = new();
+        private LeaderboardStream? _sseStream;
+        private Task? _pollLoop;
+        private Task? _sseLoop;
+        private int _closed;
+
+        private LiveLeaderboardSubscription(
+            LeaderboardsClient leaderboards,
+            string leaderboardId,
+            Action<LeaderboardStreamEvent> onEvent,
+            SubscribeOptions opts
+        )
+        {
+            _leaderboards = leaderboards;
+            _leaderboardId = leaderboardId;
+            _onEvent = onEvent;
+            _onError = opts.OnError ?? (_ => { });
+            _pollIntervalMs = opts.PollIntervalMs;
+        }
+
+        internal static LiveLeaderboardSubscription Open(
+            LeaderboardsClient leaderboards,
+            string leaderboardId,
+            Action<LeaderboardStreamEvent> onEvent,
+            SubscribeOptions opts
+        )
+        {
+            var sub = new LiveLeaderboardSubscription(leaderboards, leaderboardId, onEvent, opts);
+            sub._sseLoop = Task.Run(sub.RunSseLoopAsync);
+            if (opts.PollIntervalMs > 0)
+            {
+                sub._pollLoop = Task.Run(sub.RunPollLoopAsync);
+            }
+            return sub;
+        }
+
+        private void Surface(LeaderboardStreamEvent ev)
+        {
+            if (Volatile.Read(ref _closed) == 1) return;
+            // Dedup score_update by (participantId, score). Other event
+            // kinds (ready, closed, parse-error) always pass through.
+            if (ev.Kind == "score_update" && ev.Data != null)
+            {
+                if (ev.Data.TryGetValue("participantId", out var pidTok) &&
+                    ev.Data.TryGetValue("score", out var scoreTok))
+                {
+                    var pid = (string?)pidTok;
+                    if (pid != null && scoreTok.Type != Newtonsoft.Json.Linq.JTokenType.Null)
+                    {
+                        var score = (double)scoreTok;
+                        lock (_lastSurfacedScore)
+                        {
+                            if (_lastSurfacedScore.TryGetValue(pid, out var prior) && prior == score)
+                                return;
+                            _lastSurfacedScore[pid] = score;
+                        }
+                    }
+                }
+            }
+            try { _onEvent(ev); }
+            catch (Exception cbErr) { try { _onError(cbErr); } catch { /* swallow */ } }
+        }
+
+        private async Task RunSseLoopAsync()
+        {
+            try
+            {
+                _sseStream = await _leaderboards.LiveAsync(_leaderboardId, _cts.Token).ConfigureAwait(false);
+            }
+            catch (Exception err)
+            {
+                if (Volatile.Read(ref _closed) == 0) { try { _onError(err); } catch { /* swallow */ } }
+                return;
+            }
+            _sseStream.OnEvent = Surface;
+            _sseStream.OnError = err => {
+                if (Volatile.Read(ref _closed) == 0) { try { _onError(err); } catch { /* swallow */ } }
+            };
+        }
+
+        private async Task RunPollLoopAsync()
+        {
+            // Fire one read immediately so the first frame of the UI
+            // lands with current scores instead of waiting a full interval.
+            await PollOnceAsync().ConfigureAwait(false);
+            while (!_cts.IsCancellationRequested)
+            {
+                try { await Task.Delay(_pollIntervalMs, _cts.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { return; }
+                await PollOnceAsync().ConfigureAwait(false);
+            }
+        }
+
+        private async Task PollOnceAsync()
+        {
+            if (Volatile.Read(ref _closed) == 1) return;
+            try
+            {
+                var lb = await _leaderboards.ReadAsync(_leaderboardId, null, _cts.Token).ConfigureAwait(false);
+                foreach (var entry in lb.Entries)
+                {
+                    Surface(new LeaderboardStreamEvent("score_update", new Dictionary<string, Newtonsoft.Json.Linq.JToken>
+                    {
+                        ["leaderboardId"] = lb.LeaderboardId,
+                        ["participantId"] = entry.ParticipantId,
+                        ["score"] = entry.Score,
+                        ["rank"] = entry.Rank,
+                    }));
+                }
+            }
+            catch (Exception err)
+            {
+                if (Volatile.Read(ref _closed) == 0) { try { _onError(err); } catch { /* swallow */ } }
+            }
+        }
+
+        public async Task CancelAsync()
+        {
+            if (Interlocked.Exchange(ref _closed, 1) == 1) return;
+            try { _cts.Cancel(); } catch { /* swallow */ }
+            if (_sseStream != null)
+            {
+                try { await _sseStream.CancelAsync().ConfigureAwait(false); } catch { /* swallow */ }
+            }
+            try { if (_pollLoop != null) await _pollLoop.ConfigureAwait(false); } catch { /* swallow */ }
+            try { if (_sseLoop != null) await _sseLoop.ConfigureAwait(false); } catch { /* swallow */ }
+            try { _cts.Dispose(); } catch { /* swallow */ }
+        }
+
+        public void Dispose()
+        {
+            _ = CancelAsync();
         }
     }
 
