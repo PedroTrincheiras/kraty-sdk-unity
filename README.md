@@ -33,15 +33,15 @@ In `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "app.kraty.sdk": "https://github.com/kraty-team/kraty-sdk-unity.git#upm"
+    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.3.1"
   }
 }
 ```
 
-The `upm` branch is auto-published by CI on each tagged release —
-it's a flat-rooted mirror of this package that Unity Package
-Manager can pull directly. Tagged releases also live on
-`upm/v0.x.y` refs.
+Tags live at
+[github.com/PedroTrincheiras/kraty-sdk-unity/releases](https://github.com/PedroTrincheiras/kraty-sdk-unity/releases);
+each release is a flat-rooted mirror of this package that Unity
+Package Manager can pull directly.
 
 ### Local disk
 
@@ -223,30 +223,24 @@ Unity ignores everything outside `Runtime/`, so the `.csproj` +
 
 ## Publishing (maintainers)
 
-CI auto-publishes the UPM branch on each tag matching
-`sdk-unity-v*`. To cut a release:
+Releases are pushed from the private monorepo into
+[PedroTrincheiras/kraty-sdk-unity](https://github.com/PedroTrincheiras/kraty-sdk-unity)
+via `scripts/sync-public-sdks.sh`:
 
 ```bash
-# 1. Bump packages/sdk-unity/package.json `version`.
-# 2. Update packages/sdk-unity/CHANGELOG.md.
-# 3. Commit, push.
-git tag sdk-unity-v0.1.0
-git push origin sdk-unity-v0.1.0
+# 1. Bump packages/client/sdk-unity/package.json `version`.
+# 2. Update packages/client/sdk-unity/CHANGELOG.md.
+# 3. Update the install snippet in apps/portal/content/docs/sdks/unity.mdx.
+# 4. Commit + push the monorepo.
+scripts/sync-public-sdks.sh client-unity v0.3.1
 ```
 
-The `.github/workflows/sdk-unity.yml` workflow then:
-
-1. Builds + tests the SDK against .NET 10.
-2. Repackages `Runtime/` + `package.json` + `README.md` +
-   `CHANGELOG.md` into a flat tree.
-3. Force-pushes that tree to the `upm` branch and tags it
-   `upm/v0.1.0`.
+The script copies the package contents into the public repo,
+commits, pushes, tags, and creates the GitHub release —
+idempotent: re-running for the same version is a no-op.
 
 Consumers update by bumping the ref in their `manifest.json`:
 
 ```json
-"app.kraty.sdk": "https://github.com/kraty-team/kraty-sdk-unity.git#upm/v0.1.0"
+"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.3.1"
 ```
-
-The publish script lives at `tools/sdk-unity/publish-upm.sh` and
-can be run locally for dry-run testing.

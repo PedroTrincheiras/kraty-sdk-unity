@@ -4,7 +4,19 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
-## [0.1.1] — 2026-06-15
+## [0.3.1] — 2026-06-16
+
+### Fixed
+
+- **Shipped `.meta` files for every package asset.** The package's
+  `.gitignore` carried a blanket `*.meta` rule, so the published UPM
+  package contained no meta files. Unity then generated fresh random
+  GUIDs on each consumer's import, breaking the assembly-definition
+  reference and emitting import errors on the SDK scripts. The
+  Runtime scripts, folders, the asmdef, `package.json`, README and
+  CHANGELOG now ship tracked metas with stable GUIDs.
+
+## [0.3.0] — 2026-06-15
 
 ### Changed (BREAKING)
 
@@ -33,8 +45,6 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
   `JsonSerializerSettings` and returns Newtonsoft's
   `JsonSerializerSettings` type — only consumed by the SSE stream
   helper, not in the public API surface.
-
-## [Unreleased]
 
 ### Added
 
