@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -188,9 +189,22 @@ namespace Kraty
     {
         private readonly string _keyPrefix;
 
+        // Captured at construction. Callers build this store on the Unity
+        // main thread (Awake/Start), so this is the player-loop
+        // SynchronizationContext. The SDK's identity resolver awaits its
+        // network I/O with ConfigureAwait(false), so the continuations that
+        // call into this store land on thread-pool threads. PlayerPrefs is
+        // main-thread-only and throws off it ("can only be called from the
+        // main thread"), so every access is marshalled back onto this
+        // context. Null only if constructed off the player loop (e.g. a
+        // background thread or a bare unit test), in which case we run
+        // inline and trust the caller's threading.
+        private readonly SynchronizationContext? _mainThread;
+
         public PlayerPrefsSecretStore(string keyPrefix = "kraty.playerSecret.")
         {
             _keyPrefix = keyPrefix;
+            _mainThread = SynchronizationContext.Current;
         }
 
         // Sentinel suffix for the active-player marker. The trailing
@@ -199,56 +213,79 @@ namespace Kraty
         // safe characters at the backend layer.
         private string ActiveKey => _keyPrefix + "__active__";
 
-        public Task<string?> ReadAsync(string externalPlayerId, CancellationToken cancellationToken = default)
+        // Run a PlayerPrefs access on the captured main-thread context. If
+        // we have no context, or we're already on it, run inline to avoid a
+        // pointless Post + frame of latency.
+        private Task<T> OnMainThread<T>(Func<T> func)
         {
-            var key = _keyPrefix + externalPlayerId;
-            var v = UnityEngine.PlayerPrefs.HasKey(key) ? UnityEngine.PlayerPrefs.GetString(key) : null;
-            return Task.FromResult(string.IsNullOrEmpty(v) ? null : v);
+            if (_mainThread == null || _mainThread == SynchronizationContext.Current)
+            {
+                return Task.FromResult(func());
+            }
+            var tcs = new TaskCompletionSource<T>();
+            _mainThread.Post(_ =>
+            {
+                try { tcs.SetResult(func()); }
+                catch (Exception e) { tcs.SetException(e); }
+            }, null);
+            return tcs.Task;
         }
 
-        public Task WriteAsync(string externalPlayerId, string secret, CancellationToken cancellationToken = default)
-        {
-            UnityEngine.PlayerPrefs.SetString(_keyPrefix + externalPlayerId, secret);
-            UnityEngine.PlayerPrefs.Save();
-            return Task.CompletedTask;
-        }
+        private Task OnMainThread(Action action) =>
+            OnMainThread<object?>(() => { action(); return null; });
 
-        public Task RemoveAsync(string externalPlayerId, CancellationToken cancellationToken = default)
-        {
-            UnityEngine.PlayerPrefs.DeleteKey(_keyPrefix + externalPlayerId);
-            // If we just deleted the secret of the currently-active
-            // player, also zap the active marker so a stored-identity
-            // lookup doesn't return a usable id with a missing secret.
-            if (UnityEngine.PlayerPrefs.HasKey(ActiveKey) &&
-                UnityEngine.PlayerPrefs.GetString(ActiveKey) == externalPlayerId)
+        public Task<string?> ReadAsync(string externalPlayerId, CancellationToken cancellationToken = default) =>
+            OnMainThread<string?>(() =>
+            {
+                var key = _keyPrefix + externalPlayerId;
+                var v = UnityEngine.PlayerPrefs.HasKey(key) ? UnityEngine.PlayerPrefs.GetString(key) : null;
+                return string.IsNullOrEmpty(v) ? null : v;
+            });
+
+        public Task WriteAsync(string externalPlayerId, string secret, CancellationToken cancellationToken = default) =>
+            OnMainThread(() =>
+            {
+                UnityEngine.PlayerPrefs.SetString(_keyPrefix + externalPlayerId, secret);
+                UnityEngine.PlayerPrefs.Save();
+            });
+
+        public Task RemoveAsync(string externalPlayerId, CancellationToken cancellationToken = default) =>
+            OnMainThread(() =>
+            {
+                UnityEngine.PlayerPrefs.DeleteKey(_keyPrefix + externalPlayerId);
+                // If we just deleted the secret of the currently-active
+                // player, also zap the active marker so a stored-identity
+                // lookup doesn't return a usable id with a missing secret.
+                if (UnityEngine.PlayerPrefs.HasKey(ActiveKey) &&
+                    UnityEngine.PlayerPrefs.GetString(ActiveKey) == externalPlayerId)
+                {
+                    UnityEngine.PlayerPrefs.DeleteKey(ActiveKey);
+                }
+                UnityEngine.PlayerPrefs.Save();
+            });
+
+        public Task<string?> ReadActiveExternalPlayerIdAsync(CancellationToken cancellationToken = default) =>
+            OnMainThread<string?>(() =>
+            {
+                var v = UnityEngine.PlayerPrefs.HasKey(ActiveKey)
+                    ? UnityEngine.PlayerPrefs.GetString(ActiveKey)
+                    : null;
+                return string.IsNullOrEmpty(v) ? null : v;
+            });
+
+        public Task WriteActiveExternalPlayerIdAsync(string externalPlayerId, CancellationToken cancellationToken = default) =>
+            OnMainThread(() =>
+            {
+                UnityEngine.PlayerPrefs.SetString(ActiveKey, externalPlayerId);
+                UnityEngine.PlayerPrefs.Save();
+            });
+
+        public Task ClearActiveExternalPlayerIdAsync(CancellationToken cancellationToken = default) =>
+            OnMainThread(() =>
             {
                 UnityEngine.PlayerPrefs.DeleteKey(ActiveKey);
-            }
-            UnityEngine.PlayerPrefs.Save();
-            return Task.CompletedTask;
-        }
-
-        public Task<string?> ReadActiveExternalPlayerIdAsync(CancellationToken cancellationToken = default)
-        {
-            var v = UnityEngine.PlayerPrefs.HasKey(ActiveKey)
-                ? UnityEngine.PlayerPrefs.GetString(ActiveKey)
-                : null;
-            return Task.FromResult(string.IsNullOrEmpty(v) ? null : v);
-        }
-
-        public Task WriteActiveExternalPlayerIdAsync(string externalPlayerId, CancellationToken cancellationToken = default)
-        {
-            UnityEngine.PlayerPrefs.SetString(ActiveKey, externalPlayerId);
-            UnityEngine.PlayerPrefs.Save();
-            return Task.CompletedTask;
-        }
-
-        public Task ClearActiveExternalPlayerIdAsync(CancellationToken cancellationToken = default)
-        {
-            UnityEngine.PlayerPrefs.DeleteKey(ActiveKey);
-            UnityEngine.PlayerPrefs.Save();
-            return Task.CompletedTask;
-        }
+                UnityEngine.PlayerPrefs.Save();
+            });
     }
 #endif
 }

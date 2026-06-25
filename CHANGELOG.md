@@ -4,6 +4,24 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
+## [0.3.2] — 2026-06-25
+
+### Fixed
+
+- **`PlayerPrefsSecretStore` is now main-thread-safe.** UnityEngine's
+  `PlayerPrefs` throws when read or written off the player loop
+  (`can only be called from the main thread`), and the SDK's
+  identity resolver awaits its network I/O with
+  `ConfigureAwait(false)` — the continuations that touched
+  `PlayerPrefs` were landing on thread-pool threads in shipped
+  builds and crashing the auth bootstrap. The store now captures
+  the player-loop `SynchronizationContext` at construction and
+  marshals every read/write/remove back onto it via a small
+  `OnMainThread(...)` helper, returning a `Task` that completes
+  when the main thread finishes the prefs op. Inline fast-path
+  when the caller is already on the main thread keeps the cost
+  to one allocation per access (the wrapper `Task`).
+
 ## [0.3.1] — 2026-06-16
 
 ### Fixed
