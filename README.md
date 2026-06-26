@@ -33,7 +33,7 @@ In `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.4.0"
+    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.4.1"
   }
 }
 ```
@@ -233,7 +233,7 @@ via `scripts/sync-public-sdks.sh`:
 # 2. Update packages/client/sdk-unity/CHANGELOG.md.
 # 3. Update the install snippet in apps/portal/content/docs/sdks/unity.mdx.
 # 4. Commit + push the monorepo.
-scripts/sync-public-sdks.sh client-unity v0.4.0
+scripts/sync-public-sdks.sh client-unity v0.4.1
 ```
 
 The script copies the package contents into the public repo,
@@ -243,5 +243,5 @@ idempotent: re-running for the same version is a no-op.
 Consumers update by bumping the ref in their `manifest.json`:
 
 ```json
-"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.4.0"
+"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.4.1"
 ```

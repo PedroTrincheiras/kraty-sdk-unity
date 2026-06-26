@@ -96,7 +96,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Resource client for <c>/sdk/v1/shared-leaderboards/:key</c> — the
+    /// Resource client for <c>/sdk/v1/leaderboards/:key</c> — the
     /// dashboard-configured cross-event leaderboards your studio defines
     /// (e.g. <c>"weekly_global"</c>, <c>"weekly_region"</c>). This is the
     /// surface most game UI wants. For the auto-created per-event-window
@@ -108,7 +108,7 @@ namespace Kraty
         public LeaderboardsClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/shared-leaderboards/:key</c> — snapshot read of a
+        /// GET <c>/sdk/v1/leaderboards/:key</c> — snapshot read of a
         /// configurable, cross-event leaderboard.
         /// </summary>
         /// <param name="key">The board's game-scoped key from the dashboard.</param>
@@ -136,8 +136,8 @@ namespace Kraty
                 qs.Add($"externalId={Uri.EscapeDataString(externalId)}");
             }
             var path = qs.Count == 0
-                ? $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}"
-                : $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}?{string.Join("&", qs)}";
+                ? $"/sdk/v1/leaderboards/{Uri.EscapeDataString(key)}"
+                : $"/sdk/v1/leaderboards/{Uri.EscapeDataString(key)}?{string.Join("&", qs)}";
 
             var env = await _client.RequestAsync<DataEnvelope<Leaderboard>>(
                 HttpMethod.Get, path, cancellationToken: ct
@@ -146,7 +146,7 @@ namespace Kraty
         }
 
         /// <summary>
-        /// GET <c>/sdk/v1/shared-leaderboards/:key/periods</c> — list the
+        /// GET <c>/sdk/v1/leaderboards/:key/periods</c> — list the
         /// finalized snapshot periods available for this leaderboard,
         /// newest first. Pair with
         /// <see cref="ReadAsync"/> + <see cref="LeaderboardReadOptions.Period"/>
@@ -162,8 +162,8 @@ namespace Kraty
         )
         {
             var path = limit.HasValue
-                ? $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}/periods?limit={limit.Value}"
-                : $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}/periods";
+                ? $"/sdk/v1/leaderboards/{Uri.EscapeDataString(key)}/periods?limit={limit.Value}"
+                : $"/sdk/v1/leaderboards/{Uri.EscapeDataString(key)}/periods";
             var env = await _client.RequestAsync<DataEnvelope<LeaderboardPeriods>>(
                 HttpMethod.Get, path, cancellationToken: ct
             ).ConfigureAwait(false);
@@ -172,7 +172,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Resource client for <c>/sdk/v1/leaderboards/:id</c> — the
+    /// Resource client for <c>/sdk/v1/event-leaderboards/:id</c> — the
     /// auto-generated per-event-window leaderboard, addressed by the
     /// UUID <c>Events.StartAsync(...)</c> returns in
     /// <c>attempt.LeaderboardId</c>. Includes Server-Sent-Events live
@@ -185,8 +185,8 @@ namespace Kraty
         public EventLeaderboardsClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/leaderboards/:id</c> — snapshot read of one
-        /// event window's leaderboard. The id is the UUID
+        /// GET <c>/sdk/v1/event-leaderboards/:id</c> — snapshot read of
+        /// one event window's leaderboard. The id is the UUID
         /// <c>Events.StartAsync(...)</c> returns as
         /// <c>start.Attempt.LeaderboardId</c>.
         /// </summary>
@@ -208,8 +208,8 @@ namespace Kraty
                 qs.Add($"externalId={Uri.EscapeDataString(externalId)}");
             }
             var path = qs.Count == 0
-                ? $"/sdk/v1/leaderboards/{Uri.EscapeDataString(leaderboardId)}"
-                : $"/sdk/v1/leaderboards/{Uri.EscapeDataString(leaderboardId)}?{string.Join("&", qs)}";
+                ? $"/sdk/v1/event-leaderboards/{Uri.EscapeDataString(leaderboardId)}"
+                : $"/sdk/v1/event-leaderboards/{Uri.EscapeDataString(leaderboardId)}?{string.Join("&", qs)}";
 
             var env = await _client.RequestAsync<DataEnvelope<EventLeaderboard>>(
                 HttpMethod.Get, path, cancellationToken: ct
@@ -218,7 +218,7 @@ namespace Kraty
         }
 
         /// <summary>
-        /// GET <c>/sdk/v1/leaderboards/:id/stream</c> — opens a
+        /// GET <c>/sdk/v1/event-leaderboards/:id/stream</c> — opens a
         /// Server-Sent Events subscription that pushes score updates
         /// in real time. Returns a <see cref="LeaderboardStream"/> handle
         /// the caller drives via its <c>OnEvent</c> / <c>OnError</c>

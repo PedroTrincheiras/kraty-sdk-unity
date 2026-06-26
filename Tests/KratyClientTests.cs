@@ -101,7 +101,7 @@ namespace Kraty.Tests
                 "{\"error\":{\"code\":\"not_found\",\"message\":\"leaderboard not found\"}}");
             using var client = new KratyClient(BaseOpts(handler));
             var err = await Assert.ThrowsAsync<KratyApiError>(async () =>
-                await client.RequestAsync<DataEnvelope<object>>(HttpMethod.Get, "/sdk/v1/leaderboards/missing"));
+                await client.RequestAsync<DataEnvelope<object>>(HttpMethod.Get, "/sdk/v1/event-leaderboards/missing"));
             Assert.Equal(404, err.Status);
             Assert.Equal("not_found", err.Code);
         }
@@ -218,7 +218,7 @@ namespace Kraty.Tests
             using var kraty = new Kraty(BaseOpts(handler));
             var board = await kraty.EventLeaderboards.ReadAsync("lb_1", new EventLeaderboardReadOptions { Limit = 10 });
             Assert.Equal("lb_1", board.LeaderboardId);
-            Assert.Contains("/sdk/v1/leaderboards/lb_1?limit=10", handler.Calls[0].Url);
+            Assert.Contains("/sdk/v1/event-leaderboards/lb_1?limit=10", handler.Calls[0].Url);
         }
 
         [Fact]
@@ -354,7 +354,7 @@ namespace Kraty.Tests
             Assert.Equal("weekly", board.ResetCadence);
             Assert.Single(board.Entries);
             Assert.Equal(1, board.Entries[0].Rank);
-            Assert.Contains("/sdk/v1/shared-leaderboards/weekly_global?limit=10", handler.Calls[0].Url);
+            Assert.Contains("/sdk/v1/leaderboards/weekly_global?limit=10", handler.Calls[0].Url);
         }
 
         [Fact]
@@ -398,7 +398,7 @@ namespace Kraty.Tests
             var resp = await kraty.Leaderboards.ListPeriodsAsync("weekly_global", limit: 5);
             Assert.Equal(2, resp.Periods.Count);
             Assert.Equal("2026-06-15T00:00:00Z", resp.Periods[0].PeriodStartedAt);
-            Assert.Contains("/sdk/v1/shared-leaderboards/weekly_global/periods?limit=5", handler.Calls[0].Url);
+            Assert.Contains("/sdk/v1/leaderboards/weekly_global/periods?limit=5", handler.Calls[0].Url);
         }
     }
 }

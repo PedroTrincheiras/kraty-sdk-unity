@@ -135,7 +135,7 @@ namespace Kraty
             CancellationToken cancellationToken
         )
         {
-            var url = $"{baseUrl}/sdk/v1/leaderboards/{Uri.EscapeDataString(leaderboardId)}/stream";
+            var url = $"{baseUrl}/sdk/v1/event-leaderboards/{Uri.EscapeDataString(leaderboardId)}/stream";
             var req = new HttpRequestMessage(HttpMethod.Get, url);
             req.Headers.TryAddWithoutValidation("authorization", authHeader);
             req.Headers.TryAddWithoutValidation("accept", "text/event-stream");

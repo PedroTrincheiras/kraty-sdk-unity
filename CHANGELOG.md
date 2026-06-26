@@ -4,6 +4,26 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
+## [0.4.1] — 2026-06-26
+
+### Changed (BREAKING URL alignment with v0.4.0 rename)
+
+- **Backend URLs renamed in lockstep with the SDK clients.** The
+  v0.4.0 split (`Leaderboards` by key, `EventLeaderboards` by UUID)
+  is now mirrored on the wire:
+  - `GET /sdk/v1/leaderboards/:key`
+    (was `GET /sdk/v1/shared-leaderboards/:key`)
+  - `GET /sdk/v1/leaderboards/:key/periods`
+    (was `GET /sdk/v1/shared-leaderboards/:key/periods`)
+  - `GET /sdk/v1/event-leaderboards/:id`
+    (was `GET /sdk/v1/leaderboards/:id`)
+  - `GET /sdk/v1/event-leaderboards/:id/stream`
+    (was `GET /sdk/v1/leaderboards/:id/stream`)
+- v0.4.0's method names stay the same — only the path strings the
+  SDK sends changed. Upgrading is a manifest bump.
+- v0.3.x and v0.4.0 clients will 404 on the old paths after the
+  backend deploy.
+
 ## [0.4.0] — 2026-06-26
 
 ### Changed (BREAKING)
