@@ -1,4 +1,4 @@
-# Kraty Unity SDK — public surface (v0.4.0)
+# Kraty Unity SDK — public surface (v0.4.1)
 
 Canonical method + type listing for `app.kraty.sdk`. Update this file in
 the same commit as any signature change so a single grep tells you
@@ -37,7 +37,10 @@ Task<ProgressResult> ProgressAsync(string eventKey, string attemptId, ProgressIn
 
 The dashboard-configured cross-event boards (weekly / monthly /
 all-time, optionally segmented). Addressed by stable game-scoped
-**key**.
+**key**. Wire endpoints:
+
+- `GET /sdk/v1/leaderboards/:key`
+- `GET /sdk/v1/leaderboards/:key/periods`
 
 ```csharp
 Task<Leaderboard>        ReadAsync(string key, LeaderboardReadOptions? opts = null, CancellationToken ct = default)
@@ -56,6 +59,10 @@ Task<LeaderboardPeriods> ListPeriodsAsync(string key, int? limit = null, Cancell
 The auto-generated per-event-window leaderboard. Addressed by the
 **UUID** returned in `Events.StartAsync(...)`'s
 `attempt.leaderboardId`. Includes Server-Sent Events live streaming.
+Wire endpoints:
+
+- `GET /sdk/v1/event-leaderboards/:id`
+- `GET /sdk/v1/event-leaderboards/:id/stream`
 
 ```csharp
 Task<EventLeaderboard>          ReadAsync(string leaderboardId, EventLeaderboardReadOptions? opts = null, CancellationToken ct = default)
