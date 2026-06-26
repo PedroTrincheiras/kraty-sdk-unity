@@ -170,6 +170,73 @@ namespace Kraty
         }
 
         /// <summary>
+        /// GET <c>/sdk/v1/shared-leaderboards/:key</c> — snapshot read of a
+        /// configurable, cross-event leaderboard (e.g. <c>"weekly_global"</c>).
+        /// Use this for any leaderboard your studio defined in the
+        /// dashboard's Leaderboards page; use <see cref="ReadAsync"/> only
+        /// for the auto-created per-event-window boards addressed by UUID.
+        /// </summary>
+        /// <param name="key">The board's game-scoped key from the dashboard.</param>
+        /// <param name="opts">Optional limit, segment, period, includeSelf.</param>
+        /// <param name="ct">Cancellation.</param>
+        public async Task<SharedLeaderboard> ReadSharedAsync(
+            string key,
+            SharedLeaderboardReadOptions? opts = null,
+            CancellationToken ct = default
+        )
+        {
+            opts ??= new SharedLeaderboardReadOptions();
+            var qs = new List<string>();
+            if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            if (!string.IsNullOrEmpty(opts.Segment)) qs.Add($"segment={Uri.EscapeDataString(opts.Segment!)}");
+            if (!string.IsNullOrEmpty(opts.Period)) qs.Add($"period={Uri.EscapeDataString(opts.Period!)}");
+            if (opts.IncludeSelf)
+            {
+                // Lazily resolve the active player when the caller didn't pass an
+                // explicit ExternalId — matches the contract of ReadAsync.
+                var externalId = !string.IsNullOrEmpty(opts.ExternalId)
+                    ? opts.ExternalId!
+                    : (await _client.EnsureIdentityAsync(ct).ConfigureAwait(false)).ExternalPlayerId;
+                qs.Add("includeSelf=true");
+                qs.Add($"externalId={Uri.EscapeDataString(externalId)}");
+            }
+            var path = qs.Count == 0
+                ? $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}"
+                : $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}?{string.Join("&", qs)}";
+
+            var env = await _client.RequestAsync<DataEnvelope<SharedLeaderboard>>(
+                HttpMethod.Get, path, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new SharedLeaderboard();
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/shared-leaderboards/:key/periods</c> — list the
+        /// finalized snapshot periods available for a shared leaderboard,
+        /// newest first. Pass an entry's
+        /// <see cref="SharedLeaderboardPeriod.PeriodStartedAt"/> as
+        /// <see cref="SharedLeaderboardReadOptions.Period"/> on
+        /// <see cref="ReadSharedAsync"/> to read that period's ranks.
+        /// </summary>
+        /// <param name="key">The board's game-scoped key from the dashboard.</param>
+        /// <param name="limit">1–52, default 12 server-side.</param>
+        /// <param name="ct">Cancellation.</param>
+        public async Task<SharedLeaderboardPeriods> ListSharedPeriodsAsync(
+            string key,
+            int? limit = null,
+            CancellationToken ct = default
+        )
+        {
+            var path = limit.HasValue
+                ? $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}/periods?limit={limit.Value}"
+                : $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}/periods";
+            var env = await _client.RequestAsync<DataEnvelope<SharedLeaderboardPeriods>>(
+                HttpMethod.Get, path, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new SharedLeaderboardPeriods();
+        }
+
+        /// <summary>
         /// High-level live leaderboard subscription. Composes:
         ///
         /// <list type="number">

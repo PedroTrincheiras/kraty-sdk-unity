@@ -4,6 +4,27 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
+## [0.3.3] — 2026-06-26
+
+### Added
+
+- **`Leaderboards.ReadSharedAsync(key, opts?, ct?)`** — snapshot read for
+  configurable cross-event leaderboards addressed by their game-scoped
+  key (e.g. `"weekly_global"`). Hits `GET /sdk/v1/shared-leaderboards/:key`.
+  Use this for any board defined in the dashboard's Leaderboards page;
+  reserve `ReadAsync` for the auto-created per-event-window boards
+  addressed by UUID. Supports `Limit`, `Segment`, `Period`
+  (`"current"` or an ISO timestamp from `ListSharedPeriodsAsync`),
+  and `IncludeSelf` + `ExternalId`. Passing the key into the old
+  `ReadAsync` previously crashed the server with a uuid-syntax 500;
+  the backend now returns a clear 400 pointing at this method.
+- **`Leaderboards.ListSharedPeriodsAsync(key, limit?, ct?)`** — newest-first
+  list of finalized snapshot periods for a shared board. Pair with
+  `ReadSharedAsync(key, opts.Period = period.PeriodStartedAt)` to render
+  "last week's top 10" UI.
+- New DTOs: `SharedLeaderboard`, `SharedLeaderboardPeriod`,
+  `SharedLeaderboardPeriods`, `SharedLeaderboardReadOptions`.
+
 ## [0.3.2] — 2026-06-25
 
 ### Fixed

@@ -333,5 +333,72 @@ namespace Kraty.Tests
             Assert.Contains("includeSelf=true", handler.Calls[1].Url);
             Assert.Contains("externalId=kp_", handler.Calls[1].Url);
         }
+
+        [Fact]
+        public async Task SharedLeaderboardReadHitsKeyedRouteAndDecodesShape()
+        {
+            var handler = new FakeHandler().Push(200,
+                "{\"data\":{" +
+                "\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\",\"scope\":\"global\"," +
+                "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"segment\":null," +
+                "\"period\":\"2026-06-22T00:00:00Z\"," +
+                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":42,\"rank\":1,\"isSelf\":false}]," +
+                "\"self\":null}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            var board = await kraty.Leaderboards.ReadSharedAsync("weekly_global", new SharedLeaderboardReadOptions
+            {
+                Limit = 10,
+            });
+            Assert.Equal("weekly_global", board.Key);
+            Assert.Equal("slb_1", board.SharedLeaderboardId);
+            Assert.Equal("weekly", board.ResetCadence);
+            Assert.Single(board.Entries);
+            Assert.Equal(1, board.Entries[0].Rank);
+            Assert.Contains("/sdk/v1/shared-leaderboards/weekly_global?limit=10", handler.Calls[0].Url);
+        }
+
+        [Fact]
+        public async Task SharedLeaderboardReadPassesSegmentPeriodIncludeSelf()
+        {
+            var handler = new FakeHandler().Push(200,
+                "{\"data\":{\"key\":\"weekly_region\",\"sharedLeaderboardId\":\"slb_2\",\"scope\":null," +
+                "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"segment\":\"eu\"," +
+                "\"period\":\"2026-06-15T00:00:00Z\",\"entries\":[],\"self\":{\"rank\":7,\"score\":100}}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            var board = await kraty.Leaderboards.ReadSharedAsync("weekly_region", new SharedLeaderboardReadOptions
+            {
+                Limit = 25,
+                Segment = "eu",
+                Period = "2026-06-15T00:00:00Z",
+                IncludeSelf = true,
+                ExternalId = "alice",
+            });
+            Assert.Equal("eu", board.Segment);
+            Assert.NotNull(board.Self);
+            Assert.Equal(7, board.Self!.Rank);
+            var url = handler.Calls[0].Url;
+            Assert.Contains("limit=25", url);
+            Assert.Contains("segment=eu", url);
+            Assert.Contains("period=2026-06-15T00%3A00%3A00Z", url);
+            Assert.Contains("includeSelf=true", url);
+            Assert.Contains("externalId=alice", url);
+        }
+
+        [Fact]
+        public async Task SharedLeaderboardListPeriodsDecodes()
+        {
+            var handler = new FakeHandler().Push(200,
+                "{\"data\":{\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\"," +
+                "\"currentPeriodStartedAt\":\"2026-06-22T00:00:00Z\"," +
+                "\"periods\":[" +
+                "{\"periodStartedAt\":\"2026-06-15T00:00:00Z\",\"periodEndedAt\":\"2026-06-22T00:00:00Z\"}," +
+                "{\"periodStartedAt\":\"2026-06-08T00:00:00Z\",\"periodEndedAt\":\"2026-06-15T00:00:00Z\"}" +
+                "]}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            var resp = await kraty.Leaderboards.ListSharedPeriodsAsync("weekly_global", limit: 5);
+            Assert.Equal(2, resp.Periods.Count);
+            Assert.Equal("2026-06-15T00:00:00Z", resp.Periods[0].PeriodStartedAt);
+            Assert.Contains("/sdk/v1/shared-leaderboards/weekly_global/periods?limit=5", handler.Calls[0].Url);
+        }
     }
 }

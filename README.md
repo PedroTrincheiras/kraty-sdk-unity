@@ -33,7 +33,7 @@ In `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.3.2"
+    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.3.3"
   }
 }
 ```
@@ -85,7 +85,7 @@ Debug.Log($"playing as {kraty.ActiveExternalPlayerId}");
 Seven resource clients on the `Kraty` facade:
 
 - `kraty.Events` — list / start / progress
-- `kraty.Leaderboards` — snapshot read + live SSE stream (`LiveAsync`)
+- `kraty.Leaderboards` — snapshot read + live SSE stream (`LiveAsync`); `ReadSharedAsync(key)` / `ListSharedPeriodsAsync(key)` for configurable cross-event boards
 - `kraty.Grants` — pending / claim / open / `CollectAllAsync`
 - `kraty.Lobbies` — read (with `BotSlots` projection for smooth fill UI)
 - `kraty.Inventory` — list / consume (platform-managed games)
@@ -232,7 +232,7 @@ via `scripts/sync-public-sdks.sh`:
 # 2. Update packages/client/sdk-unity/CHANGELOG.md.
 # 3. Update the install snippet in apps/portal/content/docs/sdks/unity.mdx.
 # 4. Commit + push the monorepo.
-scripts/sync-public-sdks.sh client-unity v0.3.2
+scripts/sync-public-sdks.sh client-unity v0.3.3
 ```
 
 The script copies the package contents into the public repo,
@@ -242,5 +242,5 @@ idempotent: re-running for the same version is a no-op.
 Consumers update by bumping the ref in their `manifest.json`:
 
 ```json
-"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.3.2"
+"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.3.3"
 ```
