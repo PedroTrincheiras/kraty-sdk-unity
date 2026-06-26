@@ -4,6 +4,22 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
+## [0.3.4] — 2026-06-26
+
+### Added
+
+- **`SDK Smoke Rig` sample.** A single-file `MonoBehaviour` panel
+  importable via Package Manager → Samples that exercises every
+  public surface of the SDK (Identity / Events / Leaderboards
+  per-event + shared / Grants / Lobbies / Inventory / Wallet)
+  against a configured backend, with a `Run ALL` button for one-shot
+  smoke-testing. IMGUI-only so no scene, prefab, or UI Toolkit
+  dependency. The point is catching regressions that only manifest
+  in shipped Player builds (IL2CPP stripping, off-thread
+  PlayerPrefs, missing meta files) — bugs editor unit tests miss
+  by definition. Each release should be sanity-checked through this
+  rig in both Editor and a real Player build before publish.
+
 ## [0.3.3] — 2026-06-26
 
 ### Added
