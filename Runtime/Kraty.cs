@@ -27,6 +27,7 @@ namespace Kraty
         public KratyClient Client { get; }
         public EventsClient Events { get; }
         public LeaderboardsClient Leaderboards { get; }
+        public EventLeaderboardsClient EventLeaderboards { get; }
         public GrantsClient Grants { get; }
         public LobbiesClient Lobbies { get; }
         public InventoryClient Inventory { get; }
@@ -39,6 +40,7 @@ namespace Kraty
             Client = new KratyClient(opts);
             Events = new EventsClient(Client);
             Leaderboards = new LeaderboardsClient(Client);
+            EventLeaderboards = new EventLeaderboardsClient(Client);
             Grants = new GrantsClient(Client);
             Lobbies = new LobbiesClient(Client);
             Inventory = new InventoryClient(Client);

@@ -96,16 +96,26 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Resource client for <c>/sdk/v1/leaderboards/:id</c> — snapshot
-    /// read + Server-Sent-Events live stream.
+    /// Resource client for <c>/sdk/v1/shared-leaderboards/:key</c> — the
+    /// dashboard-configured cross-event leaderboards your studio defines
+    /// (e.g. <c>"weekly_global"</c>, <c>"weekly_region"</c>). This is the
+    /// surface most game UI wants. For the auto-created per-event-window
+    /// board addressed by UUID, see <see cref="EventLeaderboardsClient"/>.
     /// </summary>
     public sealed class LeaderboardsClient
     {
         private readonly KratyClient _client;
         public LeaderboardsClient(KratyClient client) => _client = client;
 
+        /// <summary>
+        /// GET <c>/sdk/v1/shared-leaderboards/:key</c> — snapshot read of a
+        /// configurable, cross-event leaderboard.
+        /// </summary>
+        /// <param name="key">The board's game-scoped key from the dashboard.</param>
+        /// <param name="opts">Optional limit, segment, period, includeSelf.</param>
+        /// <param name="ct">Cancellation.</param>
         public async Task<Leaderboard> ReadAsync(
-            string leaderboardId,
+            string key,
             LeaderboardReadOptions? opts = null,
             CancellationToken ct = default
         )
@@ -113,11 +123,84 @@ namespace Kraty
             opts ??= new LeaderboardReadOptions();
             var qs = new List<string>();
             if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            if (!string.IsNullOrEmpty(opts.Segment)) qs.Add($"segment={Uri.EscapeDataString(opts.Segment!)}");
+            if (!string.IsNullOrEmpty(opts.Period)) qs.Add($"period={Uri.EscapeDataString(opts.Period!)}");
             if (opts.IncludeSelf)
             {
-                // Lazily resolve the active player when the dev didn't
-                // pass an explicit ExternalId — same contract as every
-                // other player-scoped method on the SDK.
+                // Lazily resolve the active player when the caller didn't pass an
+                // explicit ExternalId — same contract as every player-scoped method.
+                var externalId = !string.IsNullOrEmpty(opts.ExternalId)
+                    ? opts.ExternalId!
+                    : (await _client.EnsureIdentityAsync(ct).ConfigureAwait(false)).ExternalPlayerId;
+                qs.Add("includeSelf=true");
+                qs.Add($"externalId={Uri.EscapeDataString(externalId)}");
+            }
+            var path = qs.Count == 0
+                ? $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}"
+                : $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}?{string.Join("&", qs)}";
+
+            var env = await _client.RequestAsync<DataEnvelope<Leaderboard>>(
+                HttpMethod.Get, path, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new Leaderboard();
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/shared-leaderboards/:key/periods</c> — list the
+        /// finalized snapshot periods available for this leaderboard,
+        /// newest first. Pair with
+        /// <see cref="ReadAsync"/> + <see cref="LeaderboardReadOptions.Period"/>
+        /// to render historical snapshots ("last week's top 10").
+        /// </summary>
+        /// <param name="key">The board's game-scoped key from the dashboard.</param>
+        /// <param name="limit">1–52, default 12 server-side.</param>
+        /// <param name="ct">Cancellation.</param>
+        public async Task<LeaderboardPeriods> ListPeriodsAsync(
+            string key,
+            int? limit = null,
+            CancellationToken ct = default
+        )
+        {
+            var path = limit.HasValue
+                ? $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}/periods?limit={limit.Value}"
+                : $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}/periods";
+            var env = await _client.RequestAsync<DataEnvelope<LeaderboardPeriods>>(
+                HttpMethod.Get, path, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new LeaderboardPeriods();
+        }
+    }
+
+    /// <summary>
+    /// Resource client for <c>/sdk/v1/leaderboards/:id</c> — the
+    /// auto-generated per-event-window leaderboard, addressed by the
+    /// UUID <c>Events.StartAsync(...)</c> returns in
+    /// <c>attempt.LeaderboardId</c>. Includes Server-Sent-Events live
+    /// streaming. For the dashboard-configured cross-event boards
+    /// addressed by key, see <see cref="LeaderboardsClient"/>.
+    /// </summary>
+    public sealed class EventLeaderboardsClient
+    {
+        private readonly KratyClient _client;
+        public EventLeaderboardsClient(KratyClient client) => _client = client;
+
+        /// <summary>
+        /// GET <c>/sdk/v1/leaderboards/:id</c> — snapshot read of one
+        /// event window's leaderboard. The id is the UUID
+        /// <c>Events.StartAsync(...)</c> returns as
+        /// <c>start.Attempt.LeaderboardId</c>.
+        /// </summary>
+        public async Task<EventLeaderboard> ReadAsync(
+            string leaderboardId,
+            EventLeaderboardReadOptions? opts = null,
+            CancellationToken ct = default
+        )
+        {
+            opts ??= new EventLeaderboardReadOptions();
+            var qs = new List<string>();
+            if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            if (opts.IncludeSelf)
+            {
                 var externalId = !string.IsNullOrEmpty(opts.ExternalId)
                     ? opts.ExternalId!
                     : (await _client.EnsureIdentityAsync(ct).ConfigureAwait(false)).ExternalPlayerId;
@@ -128,10 +211,10 @@ namespace Kraty
                 ? $"/sdk/v1/leaderboards/{Uri.EscapeDataString(leaderboardId)}"
                 : $"/sdk/v1/leaderboards/{Uri.EscapeDataString(leaderboardId)}?{string.Join("&", qs)}";
 
-            var env = await _client.RequestAsync<DataEnvelope<Leaderboard>>(
+            var env = await _client.RequestAsync<DataEnvelope<EventLeaderboard>>(
                 HttpMethod.Get, path, cancellationToken: ct
             ).ConfigureAwait(false);
-            return env.Data ?? new Leaderboard();
+            return env.Data ?? new EventLeaderboard();
         }
 
         /// <summary>
@@ -142,14 +225,9 @@ namespace Kraty
         /// callbacks + <see cref="LeaderboardStream.CancelAsync"/>.
         ///
         /// <para>
-        /// Event kinds the server emits today: <c>ready</c>,
-        /// <c>score_update</c>, <c>closed</c>. See
-        /// <see cref="LeaderboardStreamEvent"/>.
-        /// </para>
-        ///
-        /// <para>
-        /// Does NOT auto-reconnect on transport drop — handle errors
-        /// via the returned stream's <c>OnError</c> and re-call
+        /// Event kinds: <c>ready</c>, <c>score_update</c>, <c>closed</c>.
+        /// Does NOT auto-reconnect on transport drop — handle errors via
+        /// the returned stream's <c>OnError</c> and re-call
         /// <see cref="LiveAsync"/> after a backoff if you want resumption.
         /// </para>
         ///
@@ -170,104 +248,22 @@ namespace Kraty
         }
 
         /// <summary>
-        /// GET <c>/sdk/v1/shared-leaderboards/:key</c> — snapshot read of a
-        /// configurable, cross-event leaderboard (e.g. <c>"weekly_global"</c>).
-        /// Use this for any leaderboard your studio defined in the
-        /// dashboard's Leaderboards page; use <see cref="ReadAsync"/> only
-        /// for the auto-created per-event-window boards addressed by UUID.
-        /// </summary>
-        /// <param name="key">The board's game-scoped key from the dashboard.</param>
-        /// <param name="opts">Optional limit, segment, period, includeSelf.</param>
-        /// <param name="ct">Cancellation.</param>
-        public async Task<SharedLeaderboard> ReadSharedAsync(
-            string key,
-            SharedLeaderboardReadOptions? opts = null,
-            CancellationToken ct = default
-        )
-        {
-            opts ??= new SharedLeaderboardReadOptions();
-            var qs = new List<string>();
-            if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
-            if (!string.IsNullOrEmpty(opts.Segment)) qs.Add($"segment={Uri.EscapeDataString(opts.Segment!)}");
-            if (!string.IsNullOrEmpty(opts.Period)) qs.Add($"period={Uri.EscapeDataString(opts.Period!)}");
-            if (opts.IncludeSelf)
-            {
-                // Lazily resolve the active player when the caller didn't pass an
-                // explicit ExternalId — matches the contract of ReadAsync.
-                var externalId = !string.IsNullOrEmpty(opts.ExternalId)
-                    ? opts.ExternalId!
-                    : (await _client.EnsureIdentityAsync(ct).ConfigureAwait(false)).ExternalPlayerId;
-                qs.Add("includeSelf=true");
-                qs.Add($"externalId={Uri.EscapeDataString(externalId)}");
-            }
-            var path = qs.Count == 0
-                ? $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}"
-                : $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}?{string.Join("&", qs)}";
-
-            var env = await _client.RequestAsync<DataEnvelope<SharedLeaderboard>>(
-                HttpMethod.Get, path, cancellationToken: ct
-            ).ConfigureAwait(false);
-            return env.Data ?? new SharedLeaderboard();
-        }
-
-        /// <summary>
-        /// GET <c>/sdk/v1/shared-leaderboards/:key/periods</c> — list the
-        /// finalized snapshot periods available for a shared leaderboard,
-        /// newest first. Pass an entry's
-        /// <see cref="SharedLeaderboardPeriod.PeriodStartedAt"/> as
-        /// <see cref="SharedLeaderboardReadOptions.Period"/> on
-        /// <see cref="ReadSharedAsync"/> to read that period's ranks.
-        /// </summary>
-        /// <param name="key">The board's game-scoped key from the dashboard.</param>
-        /// <param name="limit">1–52, default 12 server-side.</param>
-        /// <param name="ct">Cancellation.</param>
-        public async Task<SharedLeaderboardPeriods> ListSharedPeriodsAsync(
-            string key,
-            int? limit = null,
-            CancellationToken ct = default
-        )
-        {
-            var path = limit.HasValue
-                ? $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}/periods?limit={limit.Value}"
-                : $"/sdk/v1/shared-leaderboards/{Uri.EscapeDataString(key)}/periods";
-            var env = await _client.RequestAsync<DataEnvelope<SharedLeaderboardPeriods>>(
-                HttpMethod.Get, path, cancellationToken: ct
-            ).ConfigureAwait(false);
-            return env.Data ?? new SharedLeaderboardPeriods();
-        }
-
-        /// <summary>
-        /// High-level live leaderboard subscription. Composes:
-        ///
-        /// <list type="number">
-        ///   <item><description>the SSE stream from <see cref="LiveAsync"/> (real-time push for any score updates the server has published), AND</description></item>
-        ///   <item><description>a periodic background <see cref="ReadAsync"/> poll that nudges the server's lazy bot evaluator to advance bot scores, then dedupes the resulting deltas against the SSE feed.</description></item>
-        /// </list>
+        /// High-level live event-leaderboard subscription. Composes the
+        /// <see cref="LiveAsync"/> SSE stream with a periodic background
+        /// <see cref="ReadAsync"/> poll that nudges the server's lazy bot
+        /// evaluator and dedupes the resulting deltas against the SSE
+        /// feed. Idle UIs need the poll so bots tick on schedule even
+        /// without player action; the SSE side carries the resulting
+        /// score updates with low latency.
         ///
         /// <para>
-        /// Why both: bot scores climb on a schedule (per the event's
-        /// bot definitions) even when no player action would otherwise
-        /// trigger a server-side read. Without the background poll,
-        /// idle UIs never see bots tick. The SSE stream then carries
-        /// the resulting <c>score_update</c> events (the backend
-        /// publishes deltas on every lazy eval) so multiple subscribers
-        /// per leaderboard share one fan-out.
-        /// </para>
-        ///
-        /// <para>
-        /// The callback fires for every event from either source,
-        /// deduplicated so the same (participantId, score) tuple
-        /// doesn't surface twice. Callbacks fire on the HTTP
-        /// background thread — marshal to Unity's main thread before
-        /// touching <c>UnityEngine</c> APIs.
-        /// </para>
-        ///
-        /// <para>
+        /// Callbacks fire on the HTTP background thread — marshal to
+        /// Unity's main thread before touching <c>UnityEngine</c> APIs.
         /// Returns a handle whose <c>CancelAsync</c> / <c>Dispose</c>
         /// tear down both transports.
         /// </para>
         /// </summary>
-        /// <param name="leaderboardId">The leaderboard to subscribe to.</param>
+        /// <param name="leaderboardId">The event leaderboard UUID to subscribe to.</param>
         /// <param name="onEvent">Fires for every event from SSE or poll. Deduped on score.</param>
         /// <param name="opts">Optional cadence + error callback.</param>
         public LiveLeaderboardSubscription Subscribe(
@@ -286,7 +282,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Options for <see cref="LeaderboardsClient.Subscribe"/>.
+    /// Options for <see cref="EventLeaderboardsClient.Subscribe"/>.
     /// </summary>
     public sealed class SubscribeOptions
     {
@@ -297,14 +293,14 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Handle to a live leaderboard subscription opened via
-    /// <see cref="LeaderboardsClient.Subscribe"/>. Tears down both the
-    /// SSE stream and the background poll when cancelled / disposed.
+    /// Handle to a live event-leaderboard subscription opened via
+    /// <see cref="EventLeaderboardsClient.Subscribe"/>. Tears down both
+    /// the SSE stream and the background poll when cancelled / disposed.
     /// </summary>
     public sealed class LiveLeaderboardSubscription : IDisposable
     {
         private readonly CancellationTokenSource _cts = new();
-        private readonly LeaderboardsClient _leaderboards;
+        private readonly EventLeaderboardsClient _leaderboards;
         private readonly string _leaderboardId;
         private readonly Action<LeaderboardStreamEvent> _onEvent;
         private readonly Action<Exception> _onError;
@@ -316,7 +312,7 @@ namespace Kraty
         private int _closed;
 
         private LiveLeaderboardSubscription(
-            LeaderboardsClient leaderboards,
+            EventLeaderboardsClient leaderboards,
             string leaderboardId,
             Action<LeaderboardStreamEvent> onEvent,
             SubscribeOptions opts
@@ -330,7 +326,7 @@ namespace Kraty
         }
 
         internal static LiveLeaderboardSubscription Open(
-            LeaderboardsClient leaderboards,
+            EventLeaderboardsClient leaderboards,
             string leaderboardId,
             Action<LeaderboardStreamEvent> onEvent,
             SubscribeOptions opts

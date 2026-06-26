@@ -216,7 +216,7 @@ namespace Kraty.Tests
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{\"leaderboardId\":\"lb_1\",\"mode\":\"global\",\"finalized\":false,\"entries\":[],\"self\":null}}");
             using var kraty = new Kraty(BaseOpts(handler));
-            var board = await kraty.Leaderboards.ReadAsync("lb_1", new LeaderboardReadOptions { Limit = 10 });
+            var board = await kraty.EventLeaderboards.ReadAsync("lb_1", new EventLeaderboardReadOptions { Limit = 10 });
             Assert.Equal("lb_1", board.LeaderboardId);
             Assert.Contains("/sdk/v1/leaderboards/lb_1?limit=10", handler.Calls[0].Url);
         }
@@ -299,12 +299,12 @@ namespace Kraty.Tests
         }
 
         [Fact]
-        public async Task LeaderboardsReadWithIncludeSelfBuildsQueryString()
+        public async Task EventLeaderboardReadWithIncludeSelfBuildsQueryString()
         {
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{\"leaderboardId\":\"lb_self\",\"mode\":\"global\",\"finalized\":false,\"entries\":[],\"self\":{\"rank\":4,\"score\":90}}}");
             using var kraty = new Kraty(BaseOpts(handler));
-            var board = await kraty.Leaderboards.ReadAsync("lb_self", new LeaderboardReadOptions
+            var board = await kraty.EventLeaderboards.ReadAsync("lb_self", new EventLeaderboardReadOptions
             {
                 Limit = 5,
                 IncludeSelf = true,
@@ -318,7 +318,7 @@ namespace Kraty.Tests
         }
 
         [Fact]
-        public async Task LeaderboardsReadWithIncludeSelfLazilyResolvesActivePlayer()
+        public async Task EventLeaderboardReadWithIncludeSelfLazilyResolvesActivePlayer()
         {
             // Bare `new Kraty(...)` + IncludeSelf:true should lazily
             // register a player and forward THAT id as externalId — no
@@ -327,7 +327,7 @@ namespace Kraty.Tests
                 .Push(201, "{\"data\":{\"secret\":\"auto-secret\"}}")
                 .Push(200, "{\"data\":{\"leaderboardId\":\"lb_x\",\"mode\":\"global\",\"finalized\":false,\"entries\":[],\"self\":null}}");
             using var kraty = new Kraty(BaseOpts(handler));
-            await kraty.Leaderboards.ReadAsync("lb_x", new LeaderboardReadOptions { IncludeSelf = true });
+            await kraty.EventLeaderboards.ReadAsync("lb_x", new EventLeaderboardReadOptions { IncludeSelf = true });
             Assert.Equal(2, handler.Calls.Count);
             Assert.Matches(@"/sdk/v1/players/kp_[A-Za-z0-9_-]+/register$", handler.Calls[0].Url);
             Assert.Contains("includeSelf=true", handler.Calls[1].Url);
@@ -335,7 +335,7 @@ namespace Kraty.Tests
         }
 
         [Fact]
-        public async Task SharedLeaderboardReadHitsKeyedRouteAndDecodesShape()
+        public async Task LeaderboardReadHitsKeyedRouteAndDecodesShape()
         {
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{" +
@@ -345,12 +345,12 @@ namespace Kraty.Tests
                 "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":42,\"rank\":1,\"isSelf\":false}]," +
                 "\"self\":null}}");
             using var kraty = new Kraty(BaseOpts(handler));
-            var board = await kraty.Leaderboards.ReadSharedAsync("weekly_global", new SharedLeaderboardReadOptions
+            var board = await kraty.Leaderboards.ReadAsync("weekly_global", new LeaderboardReadOptions
             {
                 Limit = 10,
             });
             Assert.Equal("weekly_global", board.Key);
-            Assert.Equal("slb_1", board.SharedLeaderboardId);
+            Assert.Equal("slb_1", board.LeaderboardId);
             Assert.Equal("weekly", board.ResetCadence);
             Assert.Single(board.Entries);
             Assert.Equal(1, board.Entries[0].Rank);
@@ -358,14 +358,14 @@ namespace Kraty.Tests
         }
 
         [Fact]
-        public async Task SharedLeaderboardReadPassesSegmentPeriodIncludeSelf()
+        public async Task LeaderboardReadPassesSegmentPeriodIncludeSelf()
         {
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{\"key\":\"weekly_region\",\"sharedLeaderboardId\":\"slb_2\",\"scope\":null," +
                 "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"segment\":\"eu\"," +
                 "\"period\":\"2026-06-15T00:00:00Z\",\"entries\":[],\"self\":{\"rank\":7,\"score\":100}}}");
             using var kraty = new Kraty(BaseOpts(handler));
-            var board = await kraty.Leaderboards.ReadSharedAsync("weekly_region", new SharedLeaderboardReadOptions
+            var board = await kraty.Leaderboards.ReadAsync("weekly_region", new LeaderboardReadOptions
             {
                 Limit = 25,
                 Segment = "eu",
@@ -385,7 +385,7 @@ namespace Kraty.Tests
         }
 
         [Fact]
-        public async Task SharedLeaderboardListPeriodsDecodes()
+        public async Task LeaderboardListPeriodsDecodes()
         {
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\"," +
@@ -395,7 +395,7 @@ namespace Kraty.Tests
                 "{\"periodStartedAt\":\"2026-06-08T00:00:00Z\",\"periodEndedAt\":\"2026-06-15T00:00:00Z\"}" +
                 "]}}");
             using var kraty = new Kraty(BaseOpts(handler));
-            var resp = await kraty.Leaderboards.ListSharedPeriodsAsync("weekly_global", limit: 5);
+            var resp = await kraty.Leaderboards.ListPeriodsAsync("weekly_global", limit: 5);
             Assert.Equal(2, resp.Periods.Count);
             Assert.Equal("2026-06-15T00:00:00Z", resp.Periods[0].PeriodStartedAt);
             Assert.Contains("/sdk/v1/shared-leaderboards/weekly_global/periods?limit=5", handler.Calls[0].Url);

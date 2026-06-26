@@ -104,9 +104,9 @@ namespace Kraty.Sample.SmokeRig
             GUILayout.Space(4);
             GUILayout.Label("<b>Leaderboards</b>", new GUIStyle(GUI.skin.label) { richText = true });
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Read (per-event)")) Run(ReadPerEventLeaderboard);
-            if (GUILayout.Button("Read shared")) Run(ReadSharedLeaderboard);
-            if (GUILayout.Button("List shared periods")) Run(ListSharedPeriods);
+            if (GUILayout.Button("Read (event)")) Run(ReadPerEventLeaderboard);
+            if (GUILayout.Button("Read")) Run(ReadLeaderboard);
+            if (GUILayout.Button("List periods")) Run(ListPeriods);
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             if (GUILayout.Button(_liveSub == null ? "Subscribe live" : "Cancel live")) Run(ToggleLiveSubscribe);
@@ -203,30 +203,30 @@ namespace Kraty.Sample.SmokeRig
         private async Task ReadPerEventLeaderboard(CancellationToken ct)
         {
             if (string.IsNullOrEmpty(_lastLeaderboardId)) throw new InvalidOperationException("call Start first");
-            var board = await _kraty.Leaderboards.ReadAsync(_lastLeaderboardId,
-                new LeaderboardReadOptions { Limit = 10, IncludeSelf = true }, ct);
-            AppendLog($"leaderboard: {board.Entries.Count} rows (mode={board.Mode}, finalized={board.Finalized})");
+            var board = await _kraty.EventLeaderboards.ReadAsync(_lastLeaderboardId,
+                new EventLeaderboardReadOptions { Limit = 10, IncludeSelf = true }, ct);
+            AppendLog($"event leaderboard: {board.Entries.Count} rows (mode={board.Mode}, finalized={board.Finalized})");
             if (board.Self != null) AppendLog($"  you: #{board.Self.Rank} score={board.Self.Score}");
         }
 
-        private async Task ReadSharedLeaderboard(CancellationToken ct)
+        private async Task ReadLeaderboard(CancellationToken ct)
         {
             if (string.IsNullOrEmpty(sharedLeaderboardKey)) throw new InvalidOperationException("set sharedLeaderboardKey");
-            var board = await _kraty.Leaderboards.ReadSharedAsync(sharedLeaderboardKey,
-                new SharedLeaderboardReadOptions
+            var board = await _kraty.Leaderboards.ReadAsync(sharedLeaderboardKey,
+                new LeaderboardReadOptions
                 {
                     Limit = 10,
                     IncludeSelf = true,
                     Segment = string.IsNullOrEmpty(sharedLeaderboardSegment) ? null : sharedLeaderboardSegment,
                 }, ct);
-            AppendLog($"shared {board.Key}: {board.Entries.Count} rows (period={board.Period}, segment={board.Segment ?? "—"})");
+            AppendLog($"leaderboard {board.Key}: {board.Entries.Count} rows (period={board.Period}, segment={board.Segment ?? "—"})");
             if (board.Self != null) AppendLog($"  you: #{board.Self.Rank} score={board.Self.Score}");
         }
 
-        private async Task ListSharedPeriods(CancellationToken ct)
+        private async Task ListPeriods(CancellationToken ct)
         {
             if (string.IsNullOrEmpty(sharedLeaderboardKey)) throw new InvalidOperationException("set sharedLeaderboardKey");
-            var resp = await _kraty.Leaderboards.ListSharedPeriodsAsync(sharedLeaderboardKey, ct: ct);
+            var resp = await _kraty.Leaderboards.ListPeriodsAsync(sharedLeaderboardKey, ct: ct);
             AppendLog($"periods for {resp.Key}: {resp.Periods.Count} (current started {resp.CurrentPeriodStartedAt})");
             foreach (var p in resp.Periods) AppendLog($"  • {p.PeriodStartedAt} → {p.PeriodEndedAt}");
         }
@@ -241,7 +241,7 @@ namespace Kraty.Sample.SmokeRig
                 return Task.CompletedTask;
             }
             if (string.IsNullOrEmpty(_lastLeaderboardId)) throw new InvalidOperationException("call Start first to get a leaderboardId");
-            _liveSub = _kraty.Leaderboards.Subscribe(_lastLeaderboardId, ev =>
+            _liveSub = _kraty.EventLeaderboards.Subscribe(_lastLeaderboardId, ev =>
             {
                 // Callbacks fire on the background thread — keep the OnGUI
                 // side lock-free by deferring to the next OnGUI tick via the log.
@@ -305,8 +305,8 @@ namespace Kraty.Sample.SmokeRig
             }
             if (!string.IsNullOrEmpty(sharedLeaderboardKey))
             {
-                await ReadSharedLeaderboard(ct);
-                await ListSharedPeriods(ct);
+                await ReadLeaderboard(ct);
+                await ListPeriods(ct);
             }
             await ListPendingGrants(ct);
             await CollectAllGrants(ct);

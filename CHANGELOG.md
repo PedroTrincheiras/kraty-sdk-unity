@@ -4,6 +4,40 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-06-26
+
+### Changed (BREAKING)
+
+- **Leaderboard naming reshaped.** The "shared" / "cross-event"
+  configurable boards are now the primary `Leaderboards` surface,
+  and the per-event-window boards moved under a new
+  `EventLeaderboards` resource. The previous shape conflated the
+  two and forced every game to know what "shared" meant.
+  Migration:
+  - `kraty.Leaderboards.ReadAsync(uuid, LeaderboardReadOptions)`
+    → `kraty.EventLeaderboards.ReadAsync(uuid, EventLeaderboardReadOptions)`
+  - `kraty.Leaderboards.LiveAsync(uuid)`
+    → `kraty.EventLeaderboards.LiveAsync(uuid)`
+  - `kraty.Leaderboards.Subscribe(uuid, …)`
+    → `kraty.EventLeaderboards.Subscribe(uuid, …)`
+  - `kraty.Leaderboards.ReadSharedAsync(key, SharedLeaderboardReadOptions)`
+    → `kraty.Leaderboards.ReadAsync(key, LeaderboardReadOptions)`
+  - `kraty.Leaderboards.ListSharedPeriodsAsync(key)`
+    → `kraty.Leaderboards.ListPeriodsAsync(key)`
+- **Types renamed in lockstep:**
+  - `SharedLeaderboard` → `Leaderboard`
+  - `SharedLeaderboardPeriod(s)` → `LeaderboardPeriod(s)`
+  - `SharedLeaderboardReadOptions` → `LeaderboardReadOptions`
+  - `Leaderboard` (old per-event shape) → `EventLeaderboard`
+  - `LeaderboardReadOptions` (old per-event shape) → `EventLeaderboardReadOptions`
+  - `Leaderboard.SharedLeaderboardId` JSON property still wires
+    from the backend's `sharedLeaderboardId` field; the C# property
+    is now just `LeaderboardId` (mirroring the new top-level type
+    name).
+- Backend URLs are unchanged (`/sdk/v1/leaderboards/:uuid` +
+  `/sdk/v1/shared-leaderboards/:key`); this is purely an SDK-side
+  rename.
+
 ## [0.3.4] — 2026-06-26
 
 ### Added

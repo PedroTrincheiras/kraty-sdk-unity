@@ -56,8 +56,8 @@ namespace Kraty
     /// <para>
     /// The SDK does NOT auto-reconnect on transport drop — surface
     /// errors via <see cref="OnError"/> and re-invoke
-    /// <see cref="LeaderboardsClient.LiveAsync"/> after a backoff if
-    /// you want resumption.
+    /// <see cref="EventLeaderboardsClient.LiveAsync"/> after a backoff
+    /// if you want resumption.
     /// </para>
     /// </summary>
     public sealed class LeaderboardStream : IDisposable

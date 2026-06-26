@@ -321,27 +321,19 @@ namespace Kraty
         [JsonProperty("score")] public double Score { get; set; }
     }
 
-    public sealed class Leaderboard
-    {
-        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
-        [JsonProperty("mode")] public string Mode { get; set; } = string.Empty;
-        [JsonProperty("finalized")] public bool Finalized { get; set; }
-        [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
-        [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
-    }
-
     /// <summary>
-    /// Response from <see cref="LeaderboardsClient.ReadSharedAsync"/> — a
+    /// Response from <see cref="LeaderboardsClient.ReadAsync"/> — a
     /// configurable, cross-event leaderboard addressed by its game-scoped
-    /// <c>key</c> (e.g. <c>"weekly_global"</c>). Distinct from
-    /// <see cref="Leaderboard"/>, which is the per-event-window snapshot.
+    /// <c>key</c> (e.g. <c>"weekly_global"</c>). This is what most games
+    /// render; the auto-created per-event-window board is
+    /// <see cref="EventLeaderboard"/>.
     /// </summary>
-    public sealed class SharedLeaderboard
+    public sealed class Leaderboard
     {
         /// <summary>The board's stable game-scoped key (e.g. <c>"weekly_global"</c>).</summary>
         [JsonProperty("key")] public string Key { get; set; } = string.Empty;
-        /// <summary>UUID of the shared-leaderboard config row.</summary>
-        [JsonProperty("sharedLeaderboardId")] public string SharedLeaderboardId { get; set; } = string.Empty;
+        /// <summary>UUID of the leaderboard config row.</summary>
+        [JsonProperty("sharedLeaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
         /// <summary>One of <c>global</c>, <c>regional</c>, etc — set in the board's config.</summary>
         [JsonProperty("scope")] public string? Scope { get; set; }
         /// <summary>One of <c>daily</c>, <c>weekly</c>, <c>monthly</c>, <c>never</c>.</summary>
@@ -350,36 +342,52 @@ namespace Kraty
         [JsonProperty("scoreAggregation")] public string? ScoreAggregation { get; set; }
         /// <summary>Resolved segment bucket for segmented boards; <c>null</c> on unsegmented boards.</summary>
         [JsonProperty("segment")] public string? Segment { get; set; }
-        /// <summary>ISO timestamp of the period this read snapshot is from. <c>current</c> reads return the live period.</summary>
+        /// <summary>ISO timestamp of the period this read snapshot is from. <c>"current"</c> reads return the live period.</summary>
         [JsonProperty("period")] public string Period { get; set; } = string.Empty;
         [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
         [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
     }
 
     /// <summary>
-    /// One snapshot period on a shared leaderboard. Returned by
-    /// <see cref="LeaderboardsClient.ListSharedPeriodsAsync"/>; pass
+    /// One snapshot period on a leaderboard. Returned by
+    /// <see cref="LeaderboardsClient.ListPeriodsAsync"/>; pass
     /// <see cref="PeriodStartedAt"/> as <c>opts.Period</c> on
-    /// <see cref="LeaderboardsClient.ReadSharedAsync"/> to read that
-    /// period's snapshot.
+    /// <see cref="LeaderboardsClient.ReadAsync"/> to read that period's
+    /// snapshot.
     /// </summary>
-    public sealed class SharedLeaderboardPeriod
+    public sealed class LeaderboardPeriod
     {
         [JsonProperty("periodStartedAt")] public string PeriodStartedAt { get; set; } = string.Empty;
         [JsonProperty("periodEndedAt")] public string PeriodEndedAt { get; set; } = string.Empty;
     }
 
     /// <summary>
-    /// Response from <see cref="LeaderboardsClient.ListSharedPeriodsAsync"/>:
-    /// the board's identity plus a newest-first list of finalized periods.
+    /// Response from <see cref="LeaderboardsClient.ListPeriodsAsync"/>: the
+    /// board's identity plus a newest-first list of finalized periods.
     /// Useful for "last week's top 10" UI selectors.
     /// </summary>
-    public sealed class SharedLeaderboardPeriods
+    public sealed class LeaderboardPeriods
     {
         [JsonProperty("key")] public string Key { get; set; } = string.Empty;
-        [JsonProperty("sharedLeaderboardId")] public string SharedLeaderboardId { get; set; } = string.Empty;
+        [JsonProperty("sharedLeaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
         [JsonProperty("currentPeriodStartedAt")] public string CurrentPeriodStartedAt { get; set; } = string.Empty;
-        [JsonProperty("periods")] public List<SharedLeaderboardPeriod> Periods { get; set; } = new();
+        [JsonProperty("periods")] public List<LeaderboardPeriod> Periods { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Response from <see cref="EventLeaderboardsClient.ReadAsync"/> — the
+    /// auto-generated per-event-window leaderboard, addressed by the UUID
+    /// returned in <c>Events.StartAsync(...)</c>'s
+    /// <c>attempt.LeaderboardId</c>. For most game UI you want
+    /// <see cref="Leaderboard"/> (the dashboard-configured board) instead.
+    /// </summary>
+    public sealed class EventLeaderboard
+    {
+        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        [JsonProperty("mode")] public string Mode { get; set; } = string.Empty;
+        [JsonProperty("finalized")] public bool Finalized { get; set; }
+        [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
+        [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
     }
 
     public sealed class Grant
@@ -469,19 +477,6 @@ namespace Kraty
     {
         /// <summary>1–200, default 50 server-side.</summary>
         public int? Limit { get; set; }
-        /// <summary>When true, response includes <c>self: { rank, score }</c>.</summary>
-        public bool IncludeSelf { get; set; }
-        /// <summary>Required when <see cref="IncludeSelf"/> is true.</summary>
-        public string? ExternalId { get; set; }
-    }
-
-    /// <summary>
-    /// Per-call options for <see cref="LeaderboardsClient.ReadSharedAsync"/>.
-    /// </summary>
-    public sealed class SharedLeaderboardReadOptions
-    {
-        /// <summary>1–200, default 50 server-side.</summary>
-        public int? Limit { get; set; }
         /// <summary>
         /// Bucket value for segmented boards. <b>Required</b> when the board
         /// is segmented (the server returns <c>400 validation_failed</c>
@@ -491,13 +486,26 @@ namespace Kraty
         /// </summary>
         public string? Segment { get; set; }
         /// <summary>
-        /// <c>current</c> (default) reads the live period off Redis; an ISO
+        /// <c>"current"</c> (default) reads the live period off Redis; an ISO
         /// timestamp (typically one of
-        /// <see cref="SharedLeaderboardPeriod.PeriodStartedAt"/>) reads the
+        /// <see cref="LeaderboardPeriod.PeriodStartedAt"/>) reads the
         /// snapshotted final ranks for that period.
         /// </summary>
         public string? Period { get; set; }
         /// <summary>When true, response includes <c>self: { rank, score }</c> (live periods only).</summary>
+        public bool IncludeSelf { get; set; }
+        /// <summary>Required when <see cref="IncludeSelf"/> is true.</summary>
+        public string? ExternalId { get; set; }
+    }
+
+    /// <summary>
+    /// Per-call options for <see cref="EventLeaderboardsClient.ReadAsync"/>.
+    /// </summary>
+    public sealed class EventLeaderboardReadOptions
+    {
+        /// <summary>1–200, default 50 server-side.</summary>
+        public int? Limit { get; set; }
+        /// <summary>When true, response includes <c>self: { rank, score }</c>.</summary>
         public bool IncludeSelf { get; set; }
         /// <summary>Required when <see cref="IncludeSelf"/> is true.</summary>
         public string? ExternalId { get; set; }
