@@ -41,18 +41,30 @@ all-time, optionally segmented). Addressed by stable game-scoped
 
 - `GET /sdk/v1/leaderboards/:key`
 - `GET /sdk/v1/leaderboards/:key/periods`
+- `POST /sdk/v1/players/:externalId/leaderboards/:key/score`
 
 ```csharp
-Task<Leaderboard>        ReadAsync(string key, LeaderboardReadOptions? opts = null, CancellationToken ct = default)
-Task<LeaderboardPeriods> ListPeriodsAsync(string key, int? limit = null, CancellationToken ct = default)
+Task<Leaderboard>           ReadAsync(string key, LeaderboardReadOptions? opts = null, CancellationToken ct = default)
+Task<LeaderboardScoreResult> SubmitScoreAsync(string key, double value, LeaderboardSubmitOptions? opts = null, CancellationToken ct = default)
+Task<LeaderboardPeriods>    ListPeriodsAsync(string key, int? limit = null, CancellationToken ct = default)
 ```
 
 `LeaderboardReadOptions`:
 - `int? Limit` — 1–200, default 50 server-side
-- `string? Segment` — bucket value for segmented boards (REQUIRED on segmented boards)
+- `string? Segment` — bucket value; required only for `context` segmentation. Leave null for `progression`-segmented boards (server derives the caller's division); unsegmented boards ignore it
 - `string? Period` — `"current"` (default) or an ISO timestamp from `LeaderboardPeriod.PeriodStartedAt`
 - `bool IncludeSelf` — when true, response includes `self: { rank, score }` (live periods only)
 - `string? ExternalId` — required when `IncludeSelf` is true; lazily resolved from the active player otherwise
+
+`SubmitScoreAsync` — submit a score for the active player directly to the board, outside an event attempt. Errors: `client_scoring_disabled` (403, board is server-only), `score_not_supported` (400, progression-ranked board), `not_found` (404), `validation_failed` (400). `LeaderboardSubmitOptions`:
+- `string? Segment` — required only for `context` segmentation; null for `progression` boards (server derives the division); unsegmented boards ignore it
+- `string? IdempotencyKey` — auto-stamped when null
+- `string? ExternalId` — address a different player (server-side tooling only); lazily resolved otherwise
+
+`LeaderboardScoreResult`:
+- `string LeaderboardId`
+- `double Score`
+- `int? Rank`
 
 ## `kraty.EventLeaderboards` — `EventLeaderboardsClient`
 

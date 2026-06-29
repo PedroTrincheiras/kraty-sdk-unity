@@ -478,11 +478,13 @@ namespace Kraty
         /// <summary>1–200, default 50 server-side.</summary>
         public int? Limit { get; set; }
         /// <summary>
-        /// Bucket value for segmented boards. <b>Required</b> when the board
-        /// is segmented (the server returns <c>400 validation_failed</c>
-        /// otherwise). Pass the same value your SDK supplied in
-        /// <c>playerContext[segmentation.key]</c> when starting the
-        /// contributing attempt.
+        /// Bucket value for segmented boards. Required only for
+        /// <c>context</c> segmentation — pass the same value your SDK
+        /// supplied in <c>playerContext[segmentation.key]</c> when
+        /// starting the contributing attempt. For
+        /// <c>progression</c>-segmented boards leave this null: the
+        /// server derives the caller's division. Unsegmented boards
+        /// ignore it.
         /// </summary>
         public string? Segment { get; set; }
         /// <summary>
@@ -508,6 +510,45 @@ namespace Kraty
         /// <summary>When true, response includes <c>self: { rank, score }</c>.</summary>
         public bool IncludeSelf { get; set; }
         /// <summary>Required when <see cref="IncludeSelf"/> is true.</summary>
+        public string? ExternalId { get; set; }
+    }
+
+    /// <summary>
+    /// Result of <see cref="LeaderboardsClient.SubmitScoreAsync"/> — the
+    /// player's new standing on the board after the write.
+    /// <see cref="Rank"/> is <c>null</c> when the board can't resolve a
+    /// position for the caller yet (e.g. the period just rolled over,
+    /// or the score didn't beat a <c>best</c>-aggregation board's
+    /// existing entry).
+    /// </summary>
+    public sealed class LeaderboardScoreResult
+    {
+        /// <summary>UUID of the leaderboard config row the score landed on.</summary>
+        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        /// <summary>The score now recorded for the player on this board.</summary>
+        [JsonProperty("score")] public double Score { get; set; }
+        /// <summary>The player's rank after the write, or <c>null</c> if not yet ranked.</summary>
+        [JsonProperty("rank")] public int? Rank { get; set; }
+    }
+
+    /// <summary>
+    /// Per-call options for <see cref="LeaderboardsClient.SubmitScoreAsync"/>.
+    /// </summary>
+    public sealed class LeaderboardSubmitOptions
+    {
+        /// <summary>
+        /// Bucket value for segmented boards. Required only for
+        /// <c>context</c> segmentation. For <c>progression</c>-segmented
+        /// boards leave this null — the server derives the player's
+        /// division. Unsegmented boards ignore it.
+        /// </summary>
+        public string? Segment { get; set; }
+        /// <summary>Optional override — leave null to let the client auto-stamp one.</summary>
+        public string? IdempotencyKey { get; set; }
+        /// <summary>
+        /// Override the active player (server-side tooling only). Leave
+        /// null to target the SDK's active identity.
+        /// </summary>
         public string? ExternalId { get; set; }
     }
 

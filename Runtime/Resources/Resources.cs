@@ -110,6 +110,13 @@ namespace Kraty
         /// <summary>
         /// GET <c>/sdk/v1/leaderboards/:key</c> — snapshot read of a
         /// configurable, cross-event leaderboard.
+        ///
+        /// <para>
+        /// <c>opts.Segment</c> is required only for <c>context</c>
+        /// segmentation. For <c>progression</c>-segmented boards leave
+        /// it null — the server derives the caller's division.
+        /// Unsegmented boards ignore it.
+        /// </para>
         /// </summary>
         /// <param name="key">The board's game-scoped key from the dashboard.</param>
         /// <param name="opts">Optional limit, segment, period, includeSelf.</param>
@@ -143,6 +150,51 @@ namespace Kraty
                 HttpMethod.Get, path, cancellationToken: ct
             ).ConfigureAwait(false);
             return env.Data ?? new Leaderboard();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/leaderboards/:key/score</c> —
+        /// submit a score for the active player directly to a
+        /// dashboard-configured board, outside an event attempt.
+        /// Returns the player's new score + rank.
+        ///
+        /// <para>
+        /// <c>opts.Segment</c> is required only for <c>context</c>
+        /// segmentation (pass the bucket value). For
+        /// <c>progression</c>-segmented boards leave it null — the
+        /// server derives the player's division; unsegmented boards
+        /// ignore it. Auto-stamped idempotency key unless you provide
+        /// one via <c>opts.IdempotencyKey</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// Throws <see cref="KratyApiError"/>:
+        /// <c>client_scoring_disabled</c> (403) when the board is
+        /// server-only, <c>score_not_supported</c> (400) on a
+        /// progression-ranked board, <c>not_found</c> (404),
+        /// <c>validation_failed</c> (400). Set <c>opts.ExternalId</c>
+        /// to address a different player (server-side tooling only).
+        /// </para>
+        /// </summary>
+        public async Task<LeaderboardScoreResult> SubmitScoreAsync(
+            string key,
+            double value,
+            LeaderboardSubmitOptions? opts = null,
+            CancellationToken ct = default
+        )
+        {
+            opts ??= new LeaderboardSubmitOptions();
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(opts.ExternalId, ct).ConfigureAwait(false);
+            var body = new Dictionary<string, object?> { ["value"] = value };
+            if (!string.IsNullOrEmpty(opts.Segment)) body["segment"] = opts.Segment;
+            if (!string.IsNullOrEmpty(opts.IdempotencyKey)) body["idempotencyKey"] = opts.IdempotencyKey;
+            var env = await _client.RequestAsync<DataEnvelope<LeaderboardScoreResult>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/leaderboards/{Uri.EscapeDataString(key)}/score",
+                body: body,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new LeaderboardScoreResult();
         }
 
         /// <summary>
