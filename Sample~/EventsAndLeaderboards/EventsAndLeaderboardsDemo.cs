@@ -7,9 +7,10 @@
 //   1. Connect with a client-SDK key and lazily register a player.
 //   2. List the events available to that player.
 //   3. Start an attempt, report progress, and read the resulting score.
-//   4. Read the per-event leaderboard (by the id from `start`).
-//   5. Read a configurable cross-event leaderboard (by its dashboard key),
-//      including a segmented "division" read.
+//   4. JOIN a cross-event board (segmented, without submitting a score).
+//   5. Submit a score DIRECTLY to a cross-event board.
+//   6. Read the cross-event board (single segment).
+//   7. Multi-segment STANDINGS read (all divisions, or just yours).
 //
 // Everything here is illustrative — copy the call shapes into your own
 // systems; you would not normally do all of this in one MonoBehaviour.
@@ -117,7 +118,33 @@ namespace Kraty.Samples
                 Debug.Log("[Kraty] no open events — going straight to direct leaderboard scoring.");
             }
 
-            // ── 4. Score a configurable leaderboard DIRECTLY ──────────────
+            // ── 4. JOIN a cross-event board (no score submitted) ──────────
+            // Enrols the active player in the board's current period at score
+            // 0, and returns the board view so you can render it immediately.
+            // Use this when the player should APPEAR in the ranking as soon as
+            // they open the leaderboard UI, even before they've played:
+            //   • Weekly leagues where "starting at 0" is the intended UX.
+            //   • Progression-segmented boards — join derives the caller's
+            //     division from their progression balance server-side, so
+            //     leave `Segment` null; the response carries the resolved
+            //     segment for you to display.
+            //   • Boards you want to render "empty but present" on first
+            //     launch instead of a "not on the board yet" empty state.
+            //
+            // Idempotent: re-joining NEVER resets an existing score. On event
+            // leaderboards, `join` throws 409 `conflict` once the window has
+            // finalized (nothing to enroll into anymore).
+            var joinOpts = new LeaderboardJoinOptions { Limit = 10 };
+            // Context-segmented boards: pass the division VALUE. Progression-
+            // segmented boards: omit — server derives it from your balance.
+            if (!string.IsNullOrEmpty(division)) joinOpts.Segment = division;
+            var joined = await kraty.Leaderboards.JoinAsync(leaderboardKey, joinOpts);
+            Debug.Log($"[Kraty] joined '{leaderboardKey}'"
+                      + (string.IsNullOrEmpty(division) ? "" : $" / {division}")
+                      + $" — you are rank #{joined.Self?.Rank.ToString() ?? "-"} at score {joined.Self?.Score ?? 0}"
+                      + $" (joined-response={joined.Joined})");
+
+            // ── 5. Score a configurable leaderboard DIRECTLY ──────────────
             // The OTHER way onto a leaderboard — no event required. Ideal for
             // boards fed straight from gameplay. Segmentation:
             //   • context board     → pass the division value as `Segment`.
@@ -142,7 +169,7 @@ namespace Kraty.Samples
                 Debug.LogWarning("[Kraty] board ranks by a progression item — its value comes from that item's balance, not direct scores.");
             }
 
-            // ── 5. Read the configurable leaderboard (by dashboard key) ───
+            // ── 6. Read the configurable leaderboard (by dashboard key) ───
             // For a context board pass the division VALUE as `Segment`; for a
             // progression board you can OMIT it to get your OWN division.
             var opts = new LeaderboardReadOptions { Limit = 10, IncludeSelf = true };
@@ -153,6 +180,29 @@ namespace Kraty.Samples
                       + (string.IsNullOrEmpty(division) ? "" : $" / {division}")
                       + $" — top {board.Entries.Count}:");
             PrintEntries(board.Entries);
+
+            // ── 7. Multi-segment STANDINGS (versatile read) ───────────────
+            // `ReadAsync` returns ONE segment. `StandingsAsync` returns one
+            // block per segment picked by `Scope`:
+            //   • "self_segment" → just the caller's home division.
+            //   • "mine"         → every division the caller appears in.
+            //   • "segment"      → the one named in `Segment`.
+            //   • "all"          → every division for the period (nice for
+            //                      the "ladder overview" screen).
+            // Each block flags participation + selfRank, so the UI can render
+            // "you are #3 in Champion, not present in Gold, …" without extra
+            // reads. Set `Period` to an ISO timestamp from `ListPeriodsAsync`
+            // for historical ladders; leave as "current" for the live period.
+            var ladder = await kraty.Leaderboards.StandingsAsync(leaderboardKey,
+                new StandingsReadOptions { Scope = "all", Limit = 5, MaxSegments = 8 });
+            Debug.Log($"[Kraty] standings '{leaderboardKey}' — {ladder.Segments.Count} segment(s)"
+                      + (ladder.SegmentsTruncated ? " (more truncated)" : "") + ":");
+            foreach (var seg in ladder.Segments)
+            {
+                Debug.Log($"  · {seg.Segment ?? "(unsegmented)"} — "
+                          + $"{(seg.Participated ? $"you rank #{seg.SelfRank}" : "not on this ladder")}");
+                PrintEntries(seg.Entries);
+            }
         }
 
         private static void PrintEntries(List<LeaderboardEntry> entries)

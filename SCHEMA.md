@@ -1,4 +1,4 @@
-# Kraty Unity SDK — public surface (v0.4.1)
+# Kraty Unity SDK — public surface (v0.6.0)
 
 Canonical method + type listing for `app.kraty.sdk`. Update this file in
 the same commit as any signature change so a single grep tells you
@@ -40,13 +40,17 @@ all-time, optionally segmented). Addressed by stable game-scoped
 **key**. Wire endpoints:
 
 - `GET /sdk/v1/leaderboards/:key`
+- `GET /sdk/v1/leaderboards/:key/standings`
 - `GET /sdk/v1/leaderboards/:key/periods`
+- `POST /sdk/v1/players/:externalId/leaderboards/:key/join`
 - `POST /sdk/v1/players/:externalId/leaderboards/:key/score`
 
 ```csharp
-Task<Leaderboard>           ReadAsync(string key, LeaderboardReadOptions? opts = null, CancellationToken ct = default)
+Task<Leaderboard>            ReadAsync(string key, LeaderboardReadOptions? opts = null, CancellationToken ct = default)
+Task<Leaderboard>            JoinAsync(string key, LeaderboardJoinOptions? opts = null, CancellationToken ct = default)
+Task<BoardStandings>         StandingsAsync(string key, StandingsReadOptions? opts = null, CancellationToken ct = default)
 Task<LeaderboardScoreResult> SubmitScoreAsync(string key, double value, LeaderboardSubmitOptions? opts = null, CancellationToken ct = default)
-Task<LeaderboardPeriods>    ListPeriodsAsync(string key, int? limit = null, CancellationToken ct = default)
+Task<LeaderboardPeriods>     ListPeriodsAsync(string key, int? limit = null, CancellationToken ct = default)
 ```
 
 `LeaderboardReadOptions`:
@@ -55,6 +59,22 @@ Task<LeaderboardPeriods>    ListPeriodsAsync(string key, int? limit = null, Canc
 - `string? Period` — `"current"` (default) or an ISO timestamp from `LeaderboardPeriod.PeriodStartedAt`
 - `bool IncludeSelf` — when true, response includes `self: { rank, score }` (live periods only)
 - `string? ExternalId` — required when `IncludeSelf` is true; lazily resolved from the active player otherwise
+
+`JoinAsync` — add the active player to the board at score 0 without submitting a score, and return the current standings. Idempotent (never resets an existing score). Response `Joined = true`. `LeaderboardJoinOptions`:
+- `int? Limit` — 1–200, default 50 server-side
+- `string? Segment` — bucket value for `context` boards; leave null for `progression` boards (server derives the division from the caller's balance)
+- `string? ExternalId` — address a different player (server-side tooling only); lazily resolved otherwise
+
+`StandingsAsync` — multi-segment read. Returns one `StandingsSegment` block per segment picked by `StandingsReadOptions.Scope`. `StandingsReadOptions`:
+- `string? Scope` — `"self_segment"`, `"mine"`, `"segment"`, `"all"` (default `"all"`)
+- `string? Segment` — required when `Scope == "segment"` on a segmented board
+- `string? Period` — `"current"` (default) or an ISO timestamp from `ListPeriodsAsync`
+- `string? ExternalId` — flags `isSelf` / `selfRank`; auto-resolved for `self_segment` / `mine`
+- `int? Limit` — per-segment top-N (1..200, default 50)
+- `int? MaxSegments` — cap on returned segment blocks (1..100, default 20)
+
+`BoardStandings`: `key`, `sharedLeaderboardId`, `scope`, `resetCadence`, `scoreAggregation`, `period`, `List<StandingsSegment> Segments`, `bool SegmentsTruncated`.
+`StandingsSegment`: `string? Segment`, `bool Participated`, `int? SelfRank`, `List<LeaderboardEntry> Entries`.
 
 `SubmitScoreAsync` — submit a score for the active player directly to the board, outside an event attempt. Errors: `client_scoring_disabled` (403, board is server-only), `score_not_supported` (400, progression-ranked board), `not_found` (404), `validation_failed` (400). `LeaderboardSubmitOptions`:
 - `string? Segment` — required only for `context` segmentation; null for `progression` boards (server derives the division); unsegmented boards ignore it

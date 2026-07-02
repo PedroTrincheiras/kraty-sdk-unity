@@ -400,5 +400,125 @@ namespace Kraty.Tests
             Assert.Equal("2026-06-15T00:00:00Z", resp.Periods[0].PeriodStartedAt);
             Assert.Contains("/sdk/v1/leaderboards/weekly_global/periods?limit=5", handler.Calls[0].Url);
         }
+
+        [Fact]
+        public async Task LeaderboardJoinPostsToJoinRouteAndSurfacesJoined()
+        {
+            var handler = new FakeHandler().Push(200,
+                "{\"data\":{" +
+                "\"key\":\"weekly_region\",\"sharedLeaderboardId\":\"slb_2\",\"scope\":null," +
+                "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"segment\":\"eu\"," +
+                "\"period\":\"2026-06-22T00:00:00Z\"," +
+                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":0,\"rank\":12,\"isSelf\":true}]," +
+                "\"self\":{\"rank\":12,\"score\":0},\"joined\":true}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            var board = await kraty.Leaderboards.JoinAsync("weekly_region", new LeaderboardJoinOptions
+            {
+                Segment = "eu",
+                Limit = 10,
+                ExternalId = "alice",
+            });
+            Assert.True(board.Joined);
+            Assert.Equal("eu", board.Segment);
+            Assert.Equal("POST", handler.Calls[0].Method);
+            Assert.Contains("/sdk/v1/players/alice/leaderboards/weekly_region/join?limit=10", handler.Calls[0].Url);
+            var body = JsonConvert.DeserializeObject<Dictionary<string, JToken>>(handler.Calls[0].Body!)!;
+            Assert.Equal("eu", (string?)body["segment"]);
+        }
+
+        [Fact]
+        public async Task LeaderboardStandingsBuildsQueryStringAndDecodesSegments()
+        {
+            var handler = new FakeHandler().Push(200,
+                "{\"data\":{" +
+                "\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\",\"scope\":\"game\"," +
+                "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"period\":\"2026-06-22T00:00:00Z\"," +
+                "\"segments\":[{\"segment\":\"eu\",\"participated\":true,\"selfRank\":3," +
+                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":42,\"rank\":3,\"isSelf\":true}]}]," +
+                "\"segmentsTruncated\":false}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            var standings = await kraty.Leaderboards.StandingsAsync("weekly_global", new StandingsReadOptions
+            {
+                Scope = "segment",
+                Segment = "eu",
+                Period = "2026-06-22T00:00:00Z",
+                Limit = 25,
+                MaxSegments = 5,
+                ExternalId = "alice",
+            });
+            Assert.Equal("weekly_global", standings.Key);
+            Assert.False(standings.SegmentsTruncated);
+            Assert.Single(standings.Segments);
+            Assert.Equal("eu", standings.Segments[0].Segment);
+            Assert.True(standings.Segments[0].Participated);
+            Assert.Equal(3, standings.Segments[0].SelfRank);
+            var url = handler.Calls[0].Url;
+            Assert.Contains("/sdk/v1/leaderboards/weekly_global/standings?", url);
+            Assert.Contains("scope=segment", url);
+            Assert.Contains("segment=eu", url);
+            Assert.Contains("period=2026-06-22T00%3A00%3A00Z", url);
+            Assert.Contains("limit=25", url);
+            Assert.Contains("maxSegments=5", url);
+            Assert.Contains("externalId=alice", url);
+        }
+
+        [Fact]
+        public async Task LeaderboardStandingsDefaultsScopeToAll()
+        {
+            var handler = new FakeHandler().Push(200,
+                "{\"data\":{\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\",\"scope\":\"game\"," +
+                "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"period\":\"2026-06-22T00:00:00Z\"," +
+                "\"segments\":[],\"segmentsTruncated\":false}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            await kraty.Leaderboards.StandingsAsync("weekly_global");
+            Assert.Contains("scope=all", handler.Calls[0].Url);
+        }
+
+        [Fact]
+        public async Task LeaderboardStandingsSelfSegmentLazilyResolvesActivePlayer()
+        {
+            var handler = new FakeHandler()
+                .Push(201, "{\"data\":{\"secret\":\"auto-secret\"}}")
+                .Push(200, "{\"data\":{\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\",\"scope\":\"game\"," +
+                "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"period\":\"2026-06-22T00:00:00Z\"," +
+                "\"segments\":[],\"segmentsTruncated\":false}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            await kraty.Leaderboards.StandingsAsync("weekly_global", new StandingsReadOptions { Scope = "self_segment" });
+            Assert.Equal(2, handler.Calls.Count);
+            Assert.Matches(@"/sdk/v1/players/kp_[A-Za-z0-9_-]+/register$", handler.Calls[0].Url);
+            Assert.Contains("scope=self_segment", handler.Calls[1].Url);
+            Assert.Contains("externalId=kp_", handler.Calls[1].Url);
+        }
+
+        [Fact]
+        public async Task EventLeaderboardJoinPostsToJoinRouteAndSurfacesJoined()
+        {
+            var handler = new FakeHandler().Push(200,
+                "{\"data\":{\"leaderboardId\":\"lb_1\",\"mode\":\"global\",\"finalized\":false," +
+                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":0,\"rank\":5,\"isSelf\":true}]," +
+                "\"self\":{\"rank\":5,\"score\":0},\"joined\":true}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            var board = await kraty.EventLeaderboards.JoinAsync("lb_1", new EventLeaderboardJoinOptions
+            {
+                Limit = 10,
+                ExternalId = "alice",
+            });
+            Assert.True(board.Joined);
+            Assert.Equal("lb_1", board.LeaderboardId);
+            Assert.Equal("POST", handler.Calls[0].Method);
+            Assert.Contains("/sdk/v1/players/alice/event-leaderboards/lb_1/join?limit=10", handler.Calls[0].Url);
+        }
+
+        [Fact]
+        public async Task EventLeaderboardJoinSurfacesConflictWhenFinalized()
+        {
+            var handler = new FakeHandler().Push(409,
+                "{\"error\":{\"code\":\"conflict\",\"message\":\"event window already finalized\"}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            var err = await Assert.ThrowsAsync<KratyApiError>(async () =>
+                await kraty.EventLeaderboards.JoinAsync("lb_1", new EventLeaderboardJoinOptions { ExternalId = "alice" }));
+            Assert.Equal(409, err.Status);
+            Assert.Equal("conflict", err.Code);
+        }
     }
 }

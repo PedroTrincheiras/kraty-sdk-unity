@@ -4,6 +4,40 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
+## [0.6.0](https://github.com/PedroTrincheiras/Kraty/compare/sdk-client-unity-v0.5.0...sdk-client-unity-v0.6.0) (2026-07-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api,sdks:** rename leaderboard URLs to match v0.4.0 client split
+* **sdks:** split Leaderboards into Leaderboards (by key) + EventLeaderboards (by UUID)
+* **sdk-unity:** port from System.Text.Json to Newtonsoft.Json
+
+### Features
+
+* **api,sdks:** rename leaderboard URLs to match v0.4.0 client split ([53897ca](https://github.com/PedroTrincheiras/Kraty/commit/53897ca4cc245569dc86353de72fda3df8b925b9))
+* **api:** leaderboard join + flexible multi-segment standings ([7a9f11f](https://github.com/PedroTrincheiras/Kraty/commit/7a9f11f2598fa6bed8c6036863172b666e1ebce4))
+* **sdk-unity:** v0.3.3 — ReadSharedAsync for configurable leaderboards ([7d3e371](https://github.com/PedroTrincheiras/Kraty/commit/7d3e371cdc2deafa487a17e8fbba95b4a444cdf6))
+* **sdk-unity:** v0.3.4 — SDK Smoke Rig sample ([283b345](https://github.com/PedroTrincheiras/Kraty/commit/283b34533060aec26b42f8103c9d81ceb983f152))
+* **sdks:** document leaderboard join in Unity sample + spec `joined` field ([1719c6b](https://github.com/PedroTrincheiras/Kraty/commit/1719c6b533a748b262012e7e4f8a48c33244dc35))
+* **sdks:** leaderboard submitScore (client TS/Unity/Flutter) + server scoring/progress ([02f4e69](https://github.com/PedroTrincheiras/Kraty/commit/02f4e6944813639ca19349ff1a9c28c92e6aa62f))
+* **sdks:** split Leaderboards into Leaderboards (by key) + EventLeaderboards (by UUID) ([96116ac](https://github.com/PedroTrincheiras/Kraty/commit/96116acf7eb90ff32f2f5e9e7cf5617dc7610ec7))
+* **sdk:** subscribe() helper + lazy-eval publishes bot deltas ([099d15d](https://github.com/PedroTrincheiras/Kraty/commit/099d15dc959c0619210319d343dc380c8b74c02d))
+
+
+### Bug Fixes
+
+* **backend:** lobby fill gap + bot kind TTL race + leaderboard isSelf flag ([4122793](https://github.com/PedroTrincheiras/Kraty/commit/4122793ee5ac02b10de88f74fea244dd2d6d650c))
+* **ci:** repair all workflows after SDK restructure to client/server/ ([85f0524](https://github.com/PedroTrincheiras/Kraty/commit/85f0524ef1777240e04d96dd34dee3ec37ed7315))
+* **sdk-unity:** port from System.Text.Json to Newtonsoft.Json ([5a4df35](https://github.com/PedroTrincheiras/Kraty/commit/5a4df356754f8181da80e152812659ae80ffad5d))
+
+
+### Documentation
+
+* rewrite root README + point every SDK README at kraty.io/docs ([0bb9b13](https://github.com/PedroTrincheiras/Kraty/commit/0bb9b1385ef8803aaf2f67a3a63ea746ca4b6e12))
+* **sdks:** bump SCHEMA.md headers to v0.4.1 + add wire-endpoint refs ([c2bc5eb](https://github.com/PedroTrincheiras/Kraty/commit/c2bc5eb24afecf61bb22cec0be9a234615a25877))
+* **sdks:** bump SCHEMA.md to v0.6.0 + document join + standings ([ccb57c3](https://github.com/PedroTrincheiras/Kraty/commit/ccb57c38bb4954277cf86780b7afd172f889c21c))
+
 ## [0.5.0](https://github.com/PedroTrincheiras/Kraty/compare/sdk-client-unity-v0.1.0...sdk-client-unity-v0.5.0) (2026-06-29)
 
 

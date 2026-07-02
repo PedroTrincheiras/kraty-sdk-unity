@@ -198,6 +198,89 @@ namespace Kraty
         }
 
         /// <summary>
+        /// POST <c>/sdk/v1/players/:p/leaderboards/:key/join</c> — add the
+        /// active player to a configurable board at score 0 WITHOUT
+        /// submitting a score (they just "appear"), and return the current
+        /// standings for their segment. Idempotent — never resets an
+        /// existing score.
+        ///
+        /// <para>
+        /// <c>opts.Segment</c> is the bucket value for <c>context</c>-segmented
+        /// boards; derived server-side for <c>progression</c>-segmented
+        /// boards. Set <c>opts.ExternalId</c> to address a different player
+        /// (server-side tooling only).
+        /// </para>
+        /// </summary>
+        /// <param name="key">The board's game-scoped key from the dashboard.</param>
+        /// <param name="opts">Optional segment, limit, externalId.</param>
+        /// <param name="ct">Cancellation.</param>
+        public async Task<Leaderboard> JoinAsync(
+            string key,
+            LeaderboardJoinOptions? opts = null,
+            CancellationToken ct = default
+        )
+        {
+            opts ??= new LeaderboardJoinOptions();
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(opts.ExternalId, ct).ConfigureAwait(false);
+            var qs = new List<string>();
+            if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            var body = new Dictionary<string, object?>();
+            if (!string.IsNullOrEmpty(opts.Segment)) body["segment"] = opts.Segment;
+            var basePath = $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/leaderboards/{Uri.EscapeDataString(key)}/join";
+            var path = qs.Count == 0 ? basePath : $"{basePath}?{string.Join("&", qs)}";
+            var env = await _client.RequestAsync<DataEnvelope<Leaderboard>>(
+                HttpMethod.Post, path, body: body, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new Leaderboard();
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/leaderboards/:key/standings</c> — flexible
+        /// multi-segment read. Returns one block per segment
+        /// (<c>opts.Scope</c> picks which), each flagging the caller
+        /// (<c>isSelf</c> on entries, <c>selfRank</c>, <c>participated</c>).
+        /// Works live (<c>opts.Period == "current"</c>) or for a past period.
+        ///
+        /// <para>
+        /// Use this over <see cref="ReadAsync"/> when you want "my division",
+        /// "every division I'm in" (<c>scope: "mine"</c>), or the whole
+        /// ladder (<c>scope: "all"</c>). <c>self_segment</c>/<c>mine</c>
+        /// resolve the caller from <c>opts.ExternalId</c> (or the SDK's
+        /// active identity).
+        /// </para>
+        /// </summary>
+        /// <param name="key">The board's game-scoped key from the dashboard.</param>
+        /// <param name="opts">Optional scope, segment, period, externalId, limit, maxSegments.</param>
+        /// <param name="ct">Cancellation.</param>
+        public async Task<BoardStandings> StandingsAsync(
+            string key,
+            StandingsReadOptions? opts = null,
+            CancellationToken ct = default
+        )
+        {
+            opts ??= new StandingsReadOptions();
+            var scope = string.IsNullOrEmpty(opts.Scope) ? "all" : opts.Scope!;
+            var qs = new List<string> { $"scope={Uri.EscapeDataString(scope)}" };
+            if (!string.IsNullOrEmpty(opts.Segment)) qs.Add($"segment={Uri.EscapeDataString(opts.Segment!)}");
+            if (!string.IsNullOrEmpty(opts.Period)) qs.Add($"period={Uri.EscapeDataString(opts.Period!)}");
+            if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            if (opts.MaxSegments.HasValue) qs.Add($"maxSegments={opts.MaxSegments.Value}");
+            // self_segment / mine need a caller; auto-resolve the active
+            // identity when the caller didn't pass one explicitly.
+            var externalId = opts.ExternalId;
+            if (string.IsNullOrEmpty(externalId) && (scope == "self_segment" || scope == "mine"))
+            {
+                externalId = (await _client.EnsureIdentityAsync(ct).ConfigureAwait(false)).ExternalPlayerId;
+            }
+            if (!string.IsNullOrEmpty(externalId)) qs.Add($"externalId={Uri.EscapeDataString(externalId!)}");
+            var path = $"/sdk/v1/leaderboards/{Uri.EscapeDataString(key)}/standings?{string.Join("&", qs)}";
+            var env = await _client.RequestAsync<DataEnvelope<BoardStandings>>(
+                HttpMethod.Get, path, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new BoardStandings();
+        }
+
+        /// <summary>
         /// GET <c>/sdk/v1/leaderboards/:key/periods</c> — list the
         /// finalized snapshot periods available for this leaderboard,
         /// newest first. Pair with
@@ -265,6 +348,36 @@ namespace Kraty
 
             var env = await _client.RequestAsync<DataEnvelope<EventLeaderboard>>(
                 HttpMethod.Get, path, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new EventLeaderboard();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/event-leaderboards/:id/join</c> — add
+        /// the active player to a per-event-window board at score 0 WITHOUT
+        /// starting a scoring attempt, and return the current board.
+        /// Idempotent. Throws <see cref="KratyApiError"/> with code
+        /// <c>conflict</c> (409) once the window has finalized. Set
+        /// <c>opts.ExternalId</c> to address a different player (server-side
+        /// tooling only).
+        /// </summary>
+        /// <param name="leaderboardId">The event leaderboard UUID.</param>
+        /// <param name="opts">Optional limit, externalId.</param>
+        /// <param name="ct">Cancellation.</param>
+        public async Task<EventLeaderboard> JoinAsync(
+            string leaderboardId,
+            EventLeaderboardJoinOptions? opts = null,
+            CancellationToken ct = default
+        )
+        {
+            opts ??= new EventLeaderboardJoinOptions();
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(opts.ExternalId, ct).ConfigureAwait(false);
+            var qs = new List<string>();
+            if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            var basePath = $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/event-leaderboards/{Uri.EscapeDataString(leaderboardId)}/join";
+            var path = qs.Count == 0 ? basePath : $"{basePath}?{string.Join("&", qs)}";
+            var env = await _client.RequestAsync<DataEnvelope<EventLeaderboard>>(
+                HttpMethod.Post, path, body: new Dictionary<string, object?>(), cancellationToken: ct
             ).ConfigureAwait(false);
             return env.Data ?? new EventLeaderboard();
         }

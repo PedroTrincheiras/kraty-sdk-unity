@@ -346,6 +346,12 @@ namespace Kraty
         [JsonProperty("period")] public string Period { get; set; } = string.Empty;
         [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
         [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
+        /// <summary>
+        /// <c>true</c> on the response to
+        /// <see cref="LeaderboardsClient.JoinAsync"/>; <c>false</c> on plain
+        /// reads (the backend omits the field there).
+        /// </summary>
+        [JsonProperty("joined")] public bool Joined { get; set; }
     }
 
     /// <summary>
@@ -388,6 +394,52 @@ namespace Kraty
         [JsonProperty("finalized")] public bool Finalized { get; set; }
         [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
         [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
+        /// <summary>
+        /// <c>true</c> on the response to
+        /// <see cref="EventLeaderboardsClient.JoinAsync"/>; <c>false</c> on
+        /// plain reads (the backend omits the field there).
+        /// </summary>
+        [JsonProperty("joined")] public bool Joined { get; set; }
+    }
+
+    /// <summary>
+    /// One segment block in a <see cref="BoardStandings"/> response.
+    /// </summary>
+    public sealed class StandingsSegment
+    {
+        /// <summary>Bucket value; <c>null</c> on unsegmented boards.</summary>
+        [JsonProperty("segment")] public string? Segment { get; set; }
+        /// <summary><c>true</c> when the caller appears in this segment for the period.</summary>
+        [JsonProperty("participated")] public bool Participated { get; set; }
+        /// <summary>The caller's rank within this segment, or <c>null</c> if not present.</summary>
+        [JsonProperty("selfRank")] public int? SelfRank { get; set; }
+        [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Response from <see cref="LeaderboardsClient.StandingsAsync"/> —
+    /// flexible multi-segment standings, the versatile counterpart to
+    /// <see cref="Leaderboard"/>. Returns one <see cref="StandingsSegment"/>
+    /// block per segment selected by <c>scope</c>, live or for a past
+    /// period.
+    /// </summary>
+    public sealed class BoardStandings
+    {
+        /// <summary>The board's stable game-scoped key (e.g. <c>"weekly_global"</c>).</summary>
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
+        /// <summary>UUID of the leaderboard config row.</summary>
+        [JsonProperty("sharedLeaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        /// <summary>One of <c>game</c>, <c>studio</c>, etc — set in the board's config.</summary>
+        [JsonProperty("scope")] public string Scope { get; set; } = string.Empty;
+        /// <summary>One of <c>never</c>, <c>weekly</c>, <c>monthly</c>.</summary>
+        [JsonProperty("resetCadence")] public string ResetCadence { get; set; } = string.Empty;
+        /// <summary>How concurrent scores combine: <c>best</c>, <c>latest</c>, <c>sum</c>.</summary>
+        [JsonProperty("scoreAggregation")] public string ScoreAggregation { get; set; } = string.Empty;
+        /// <summary>ISO timestamp of the period these standings are from.</summary>
+        [JsonProperty("period")] public string Period { get; set; } = string.Empty;
+        [JsonProperty("segments")] public List<StandingsSegment> Segments { get; set; } = new();
+        /// <summary><c>true</c> when more segments existed than <c>maxSegments</c> returned.</summary>
+        [JsonProperty("segmentsTruncated")] public bool SegmentsTruncated { get; set; }
     }
 
     public sealed class Grant
@@ -501,6 +553,56 @@ namespace Kraty
     }
 
     /// <summary>
+    /// Per-call options for <see cref="LeaderboardsClient.JoinAsync"/>.
+    /// </summary>
+    public sealed class LeaderboardJoinOptions
+    {
+        /// <summary>
+        /// Bucket value for segmented boards. Required only for
+        /// <c>context</c> segmentation. For <c>progression</c>-segmented
+        /// boards leave this null — the server derives the player's
+        /// division. Unsegmented boards ignore it.
+        /// </summary>
+        public string? Segment { get; set; }
+        /// <summary>1–200, default 50 server-side.</summary>
+        public int? Limit { get; set; }
+        /// <summary>
+        /// Override the active player (server-side tooling only). Leave
+        /// null to target the SDK's active identity.
+        /// </summary>
+        public string? ExternalId { get; set; }
+    }
+
+    /// <summary>
+    /// Per-call options for <see cref="LeaderboardsClient.StandingsAsync"/>.
+    /// </summary>
+    public sealed class StandingsReadOptions
+    {
+        /// <summary>
+        /// Which segments to return (default <c>"all"</c>):
+        /// <list type="bullet">
+        ///   <item><description><c>"self_segment"</c> — the caller's single home segment.</description></item>
+        ///   <item><description><c>"mine"</c> — every segment the caller appears in.</description></item>
+        ///   <item><description><c>"segment"</c> — the one named in <see cref="Segment"/>.</description></item>
+        ///   <item><description><c>"all"</c> — every segment for the period.</description></item>
+        /// </list>
+        /// <c>self_segment</c>/<c>mine</c> resolve the caller from
+        /// <see cref="ExternalId"/> (or the SDK's active identity).
+        /// </summary>
+        public string? Scope { get; set; }
+        /// <summary>Required when <see cref="Scope"/> is <c>"segment"</c> on a segmented board.</summary>
+        public string? Segment { get; set; }
+        /// <summary><c>"current"</c> (default) or an ISO period timestamp from <see cref="LeaderboardsClient.ListPeriodsAsync"/>.</summary>
+        public string? Period { get; set; }
+        /// <summary>Flags <c>isSelf</c>/<c>selfRank</c>; auto-resolved for <c>self_segment</c>/<c>mine</c>.</summary>
+        public string? ExternalId { get; set; }
+        /// <summary>Per-segment top-N (1–200, default 50 server-side).</summary>
+        public int? Limit { get; set; }
+        /// <summary>Cap on returned segment blocks (1–100, default 20 server-side).</summary>
+        public int? MaxSegments { get; set; }
+    }
+
+    /// <summary>
     /// Per-call options for <see cref="EventLeaderboardsClient.ReadAsync"/>.
     /// </summary>
     public sealed class EventLeaderboardReadOptions
@@ -510,6 +612,20 @@ namespace Kraty
         /// <summary>When true, response includes <c>self: { rank, score }</c>.</summary>
         public bool IncludeSelf { get; set; }
         /// <summary>Required when <see cref="IncludeSelf"/> is true.</summary>
+        public string? ExternalId { get; set; }
+    }
+
+    /// <summary>
+    /// Per-call options for <see cref="EventLeaderboardsClient.JoinAsync"/>.
+    /// </summary>
+    public sealed class EventLeaderboardJoinOptions
+    {
+        /// <summary>1–200, default 50 server-side.</summary>
+        public int? Limit { get; set; }
+        /// <summary>
+        /// Override the active player (server-side tooling only). Leave
+        /// null to target the SDK's active identity.
+        /// </summary>
         public string? ExternalId { get; set; }
     }
 
