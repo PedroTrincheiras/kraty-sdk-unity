@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -84,6 +85,26 @@ namespace Kraty
         /// </summary>
         public Task SignInAsync(string externalPlayerId, string secret, CancellationToken ct = default)
             => Client.SignInAsync(externalPlayerId, secret, ct);
+
+        /// <summary>
+        /// Finalization catch-up (docs/05b). <see cref="OnFinalized"/> fires
+        /// when a board the player is in ends — live over SSE while subscribed,
+        /// OR via <see cref="CheckFinalizationsAsync"/> for boards that
+        /// finalized while they were away (call it on app foreground /
+        /// reconnect). Both paths deliver exactly once.
+        /// <see cref="DismissAsync"/> / <see cref="ClearReportedAsync"/>
+        /// acknowledge handled results so they leave storage.
+        /// </summary>
+        public Action OnFinalized(Action<FinalizationResult> cb) => Client.OnFinalized(cb);
+
+        /// <summary>Poll tracked boards; report + return any that finalized while away.</summary>
+        public Task<List<FinalizationResult>> CheckFinalizationsAsync() => Client.CheckFinalizationsAsync();
+
+        /// <summary>Acknowledge a handled finalization — drop it from the registry.</summary>
+        public Task DismissAsync(MembershipRef @ref) => Client.DismissAsync(@ref);
+
+        /// <summary>Bulk-drop every already-reported membership. Returns the count.</summary>
+        public Task<int> ClearReportedAsync() => Client.ClearReportedAsync();
 
         /// <summary>
         /// Bootstrap a player-authenticated <see cref="Kraty"/> in one

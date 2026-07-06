@@ -65,7 +65,14 @@ namespace Kraty
                 body: body,
                 cancellationToken: ct
             ).ConfigureAwait(false);
-            return env.Data ?? new StartAttemptResponse();
+            var data = env.Data ?? new StartAttemptResponse();
+            // Track the session/event board for finalization catch-up (docs/05b) —
+            // fire-and-forget so it never adds latency to start.
+            if (!string.IsNullOrEmpty(data.LeaderboardId))
+            {
+                _ = _client.TrackMembershipAsync(MembershipRef.EventBoard(data.LeaderboardId, eventKey));
+            }
+            return data;
         }
 
         /// <summary>
@@ -318,6 +325,9 @@ namespace Kraty
     {
         private readonly KratyClient _client;
         public EventLeaderboardsClient(KratyClient client) => _client = client;
+        /// <summary>The underlying client — lets the live subscription route
+        /// `finalized` events into the finalization registry.</summary>
+        internal KratyClient Client => _client;
 
         /// <summary>
         /// GET <c>/sdk/v1/event-leaderboards/:id</c> — snapshot read of
@@ -509,6 +519,13 @@ namespace Kraty
         private void Surface(LeaderboardStreamEvent ev)
         {
             if (Volatile.Read(ref _closed) == 1) return;
+            // A live `finalized` event also updates the membership registry (not
+            // just the callback) through the same single writer as catch-up —
+            // see docs/05b. Fire-and-forget; the user still gets `ev` below.
+            if (ev.Kind == "finalized")
+            {
+                _ = _leaderboards.Client.RouteFinalizedAsync(_leaderboardId, ev.Data);
+            }
             // Dedup score_update by (participantId, score). Other event
             // kinds (ready, closed, parse-error) always pass through.
             if (ev.Kind == "score_update" && ev.Data != null)

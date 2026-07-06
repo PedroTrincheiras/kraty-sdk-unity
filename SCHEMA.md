@@ -18,6 +18,13 @@ Task<(string ExternalPlayerId, string Secret)> EnsureIdentityAsync(CancellationT
 Task LogoutAsync(CancellationToken ct = default)
 Task SignInAsync(string externalPlayerId, string secret, CancellationToken ct = default)
 
+// Finalization catch-up (docs/05b). Fires exactly once per board across the
+// live SSE `finalized` event AND boards that ended while the player was away.
+Action OnFinalized(Action<FinalizationResult> cb)         // returns unsubscribe
+Task<List<FinalizationResult>> CheckFinalizationsAsync()  // call on app foreground/reconnect
+Task DismissAsync(MembershipRef ref)                      // ack one handled result
+Task<int> ClearReportedAsync()                            // bulk-drop delivered entries
+
 // Static identity helpers
 static Task<StoredIdentity?> ReadStoredIdentityAsync(ISecretStore secretStore, CancellationToken ct = default)
 static Task RestoreStoredIdentityAsync(KratyClient client, StoredIdentity identity, ISecretStore secretStore, CancellationToken ct = default)
@@ -110,6 +117,8 @@ LiveLeaderboardSubscription     Subscribe(string leaderboardId, Action<Leaderboa
 `SubscribeOptions`:
 - `int PollIntervalMs` — default 15_000; 0 disables polling (SSE-only)
 - `Action<Exception>? OnError`
+
+`EventLeaderboard` read response includes `bool Finalized` and, when finalized, `string? FinalizedReason` (`session_terminated` \| `window_closed`) — powers the finalization catch-up's session-vs-window distinction. `FinalizationResult` = `{ MembershipRef Ref; string Reason; SelfEntry? Self; IReadOnlyList<FinalStanding>? Standings; string? EventKey }`; `Reason` uses the `FinalizationReason` consts (`SessionTerminated` \| `WindowClosed` \| `PeriodRolled` \| `Finalized`). Registry persistence is injectable via `KratyClientOptions.MembershipStore` (`PlayerPrefsMembershipStore` in Unity, `InMemoryMembershipStore` otherwise).
 
 `LiveLeaderboardSubscription` exposes `Task CancelAsync()` /
 `void Dispose()`. Callbacks fire on the HTTP background thread —

@@ -58,6 +58,15 @@ namespace Kraty
         /// </summary>
         public ISecretStore? SecretStore { get; set; }
 
+        /// <summary>
+        /// Persisted registry of the boards the player is in, powering the
+        /// finalization catch-up (see docs/05b + <see cref="FinalizationTracker"/>).
+        /// Defaults per platform: <c>PlayerPrefsMembershipStore</c> in Unity,
+        /// <see cref="InMemoryMembershipStore"/> elsewhere. Override to share a
+        /// store or point at your own durable backing.
+        /// </summary>
+        public IMembershipStore? MembershipStore { get; set; }
+
         /// <summary>Override only for testing / staging. Production clients always hit the default.</summary>
         public string BaseUrl { get; set; } = "https://api.kraty.io";
 
@@ -93,6 +102,7 @@ namespace Kraty
                 PlayerSecret = playerSecret,
                 ActiveExternalPlayerId = ActiveExternalPlayerId,
                 SecretStore = SecretStore,
+                MembershipStore = MembershipStore,
                 BaseUrl = BaseUrl,
                 Timeout = Timeout,
                 Retry = Retry,
@@ -114,6 +124,7 @@ namespace Kraty
                 PlayerSecret = PlayerSecret,
                 ActiveExternalPlayerId = id,
                 SecretStore = SecretStore,
+                MembershipStore = MembershipStore,
                 BaseUrl = BaseUrl,
                 Timeout = Timeout,
                 Retry = Retry,
@@ -192,6 +203,7 @@ namespace Kraty
         private string? _playerSecret;
         private string? _activeExternalPlayerId;
         private readonly ISecretStore _secretStore;
+        private readonly FinalizationTracker _finalization;
         private readonly object _identityGate = new();
         private Task<(string ExternalPlayerId, string Secret)>? _identityInit;
 
@@ -219,6 +231,37 @@ namespace Kraty
             _retry = opts.Retry;
             _generateIdempotencyKey = opts.GenerateIdempotencyKey ?? (() => Guid.NewGuid().ToString());
             _onRequest = opts.OnRequest;
+
+            _finalization = new FinalizationTracker(
+                opts.MembershipStore ?? DefaultMembershipStore(),
+                // Never force-register during catch-up: only the current active player.
+                getActivePlayerId: () => Task.FromResult(_activeExternalPlayerId),
+                readEventBoard: ReadEventBoardStatusAsync);
+        }
+
+        // Probe an event board's finalized status + reason + the caller's self
+        // entry for the finalization catch-up. Returns null (treated as
+        // still-active) when there's no active player or the read fails.
+        private async Task<EventBoardStatus?> ReadEventBoardStatusAsync(string leaderboardId)
+        {
+            var ext = _activeExternalPlayerId;
+            if (string.IsNullOrEmpty(ext)) return null;
+            try
+            {
+                var qs = $"includeSelf=true&externalId={Uri.EscapeDataString(ext!)}&limit=1";
+                var env = await RequestAsync<DataEnvelope<EventLeaderboard>>(
+                    HttpMethod.Get,
+                    $"/sdk/v1/event-leaderboards/{Uri.EscapeDataString(leaderboardId)}?{qs}"
+                ).ConfigureAwait(false);
+                var lb = env.Data;
+                if (lb == null) return null;
+                var self = lb.Self != null ? new SelfEntry(lb.Self.Rank, lb.Self.Score) : null;
+                return new EventBoardStatus(lb.Finalized, lb.FinalizedReason, self);
+            }
+            catch
+            {
+                return null; // unreadable → treat as still-active
+            }
         }
 
         public void Dispose()
@@ -617,6 +660,35 @@ namespace Kraty
             return $"kp_{Guid.NewGuid().ToString("N")}";
         }
 
+        // ── Finalization catch-up (docs/05b) ─────────────────────────
+        // OnFinalized fires when a board the player is in ends — live over
+        // SSE while subscribed, OR via CheckFinalizationsAsync for boards
+        // that finalized while they were away. Both paths deliver exactly
+        // once. DismissAsync/ClearReportedAsync acknowledge handled results.
+
+        /// <summary>Register a finalization handler. Returns an unsubscribe action.</summary>
+        public Action OnFinalized(Action<FinalizationResult> cb) => _finalization.OnFinalized(cb);
+
+        /// <summary>Poll tracked boards; report + return any that finalized while away.
+        /// Call on app foreground / reconnect.</summary>
+        public Task<List<FinalizationResult>> CheckFinalizationsAsync() => _finalization.CheckFinalizationsAsync();
+
+        /// <summary>Acknowledge a handled finalization — drop it from the registry.</summary>
+        public Task DismissAsync(MembershipRef @ref) => _finalization.DismissAsync(@ref);
+
+        /// <summary>Bulk-drop every already-reported membership. Returns the count.</summary>
+        public Task<int> ClearReportedAsync() => _finalization.ClearReportedAsync();
+
+        // Called by EventsClient.StartAsync to record the board the player just
+        // joined. Fire-and-forget; must never add latency or throw into start.
+        internal Task TrackMembershipAsync(MembershipRef @ref) => _finalization.TrackAsync(@ref);
+
+        // Called by the live leaderboard subscription when a `finalized` SSE
+        // event arrives — routes through the same single writer as catch-up so
+        // the registry is updated (not just the callback fired). See docs/05b.
+        internal Task RouteFinalizedAsync(string leaderboardId, IDictionary<string, JToken>? data) =>
+            _finalization.OnStreamFinalizedAsync(leaderboardId, data);
+
         // Picks PlayerPrefsSecretStore on Unity, in-memory elsewhere.
         // Most game clients never need to override — the default does
         // the right thing per platform.
@@ -626,6 +698,16 @@ namespace Kraty
             return new PlayerPrefsSecretStore();
 #else
             return new InMemorySecretStore();
+#endif
+        }
+
+        // Same per-platform split for the finalization registry.
+        private static IMembershipStore DefaultMembershipStore()
+        {
+#if UNITY_5_3_OR_NEWER
+            return new PlayerPrefsMembershipStore();
+#else
+            return new InMemoryMembershipStore();
 #endif
         }
     }

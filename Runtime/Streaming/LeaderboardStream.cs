@@ -20,6 +20,12 @@ namespace Kraty
     /// <item><description><c>score_update</c> — a participant's score / rank
     /// changed; payload carries the new <c>rank</c> + <c>score</c> for
     /// the affected entry.</description></item>
+    /// <item><description><c>finalized</c> — the board ended (a session/lobby
+    /// terminated, or the event window closed). <see cref="Data"/> carries
+    /// <c>reason</c> (<c>session_terminated</c> | <c>window_closed</c>) and
+    /// <c>standings</c> (a list of <c>{participantId, rank, score, name, kind}</c>) —
+    /// find the caller by <c>participantId</c> to show their placement, then
+    /// stop expecting <c>score_update</c>s.</description></item>
     /// <item><description><c>closed</c> — server is finalizing or closing.
     /// After this the stream completes and <see cref="LeaderboardStream.CancelAsync"/>
     /// is a no-op.</description></item>

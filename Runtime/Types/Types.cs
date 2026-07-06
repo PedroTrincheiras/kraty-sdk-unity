@@ -392,6 +392,11 @@ namespace Kraty
         [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
         [JsonProperty("mode")] public string Mode { get; set; } = string.Empty;
         [JsonProperty("finalized")] public bool Finalized { get; set; }
+        /// <summary>Why the board finalized — one of the
+        /// <see cref="FinalizationReason"/> constants
+        /// (<c>session_terminated</c> vs <c>window_closed</c>), or null while
+        /// the board is still live.</summary>
+        [JsonProperty("finalizedReason")] public string? FinalizedReason { get; set; }
         [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
         [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
         /// <summary>

@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Kraty;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 namespace Kraty.Samples
@@ -84,6 +85,7 @@ namespace Kraty.Samples
             // `contributesTo` a board publishes the player's score into it.
             // Skipped when the game has no open events (then we score the
             // board directly in step 4).
+            string liveBoardId = null;
             if (events.Count > 0)
             {
                 var eventKey = events[0].EventKey;
@@ -94,6 +96,7 @@ namespace Kraty.Samples
                     eventKey,
                     playerContext: new Dictionary<string, object?> { ["region"] = "EU" });
                 var attemptId = start.Attempt.Id;
+                liveBoardId = start.LeaderboardId;
                 Debug.Log($"[Kraty] started '{eventKey}' attempt={attemptId} → leaderboard {start.LeaderboardId}");
 
                 // `metricValue` is the single-metric convenience — it routes
@@ -117,6 +120,100 @@ namespace Kraty.Samples
             {
                 Debug.Log("[Kraty] no open events — going straight to direct leaderboard scoring.");
             }
+
+            // ── 3b. LIVE updates + the `finalized` handler (sessions) ─────
+            // Subscribe to the per-event board for low-latency updates. Beyond
+            // `score_update`, the stream delivers a `finalized` event when the
+            // board ENDS — either a session (lobby) hit its end trigger
+            // (sudden-death: first to N, roster full, idle, …) or the whole
+            // event window closed. On `finalized`, render the result screen and
+            // stop expecting score updates.
+            //
+            // Callbacks fire on the HTTP background thread — marshal to Unity's
+            // main thread (e.g. a MainThreadDispatcher) before touching UI.
+            // `Debug.Log` is fine to call from any thread.
+            if (liveBoardId != null)
+            {
+                using var sub = kraty.EventLeaderboards.Subscribe(
+                    liveBoardId,
+                    ev =>
+                    {
+                        switch (ev.Kind)
+                        {
+                            case "score_update":
+                                Debug.Log($"[Kraty] live score → {Val(ev, "participantId")} = {Val(ev, "score")}");
+                                break;
+                            case "finalized":
+                                // reason: "session_terminated" (your lobby ended
+                                // early) or "window_closed" (the whole event ended).
+                                Debug.Log($"[Kraty] 🏁 board finalized ({Val(ev, "reason")}) — final standings:");
+                                if (ev.Data.TryGetValue("standings", out var s) && s is JArray rows)
+                                {
+                                    var shown = 0;
+                                    foreach (var r in rows)
+                                    {
+                                        if (shown++ >= 5) break;
+                                        Debug.Log($"    #{r["rank"]} {r["name"]} — {r["score"]} [{r["kind"]}]");
+                                    }
+                                    // Find YOUR placement by the participantId you
+                                    // captured from `start`/reads to show "you placed Nth".
+                                }
+                                break;
+                        }
+                    },
+                    new SubscribeOptions
+                    {
+                        PollIntervalMs = 15000, // 0 = SSE-only
+                        OnError = e => Debug.LogWarning($"[Kraty] stream: {e.Message}"),
+                    });
+
+                await Task.Delay(1500); // let a few live frames land during the demo
+            }
+
+            // ── 3c. What happened while you were AWAY ─────────────────────
+            // The `finalized` event above is LIVE-ONLY: a disconnected player
+            // misses it, and on return they're on a FRESH board (the next
+            // session/window). So DON'T rely on the SSE for correctness — the
+            // durable channel is GRANTS. Any reward from a finalized session or
+            // window (per-session prize, main-board reward, promotion/relegation)
+            // persists as a pending grant. Pull + collect them on app
+            // foreground / reconnect to tell the player what they earned.
+            var pending = await kraty.Grants.ListPendingAsync(limit: 50);
+            if (pending.Count > 0)
+            {
+                Debug.Log($"[Kraty] {pending.Count} reward(s) earned since you last played:");
+                foreach (var g in pending)
+                    Debug.Log($"    • {g.Kind} (source={g.SourceKind}, ref={g.SourceRefId})");
+                var collected = await kraty.Grants.CollectAllAsync();
+                Debug.Log($"[Kraty] collected {collected.Claimed.Count} grant(s) + opened {collected.Opened.Count} crate(s).");
+                // Placement from a board you missed: if you stored its leaderboardId,
+                // read it back — a finalized board still serves its final standings:
+                //   await kraty.EventLeaderboards.ReadAsync(storedBoardId, new(){ IncludeSelf = true });
+            }
+
+            // ── 3d. Finalization catch-up (durable, exactly-once) ─────────
+            // The SDK does the "which of my boards ended while I was away?"
+            // bookkeeping FOR you (docs/05b). Every Events.StartAsync auto-
+            // tracks its board in a persisted registry. Register ONE handler
+            // and it fires for BOTH paths — the live SSE `finalized` above AND
+            // boards that ended while the app was closed — exactly once each.
+            //
+            // `result.Reason` distinguishes SessionTerminated (your lobby ended
+            // early) from WindowClosed (the whole event ended) even on the
+            // catch-up path, because the board persists why it finalized.
+            var unsubscribe = kraty.OnFinalized(result =>
+            {
+                var placement = result.Self != null ? $"#{result.Self.Rank}" : "—";
+                Debug.Log($"[Kraty] catch-up: board {result.Ref.LeaderboardId} ended "
+                          + $"({result.Reason}) — you placed {placement}. Show the result screen…");
+                // Acknowledge so it never resurfaces and leaves local storage.
+                _ = kraty.DismissAsync(result.Ref);
+            });
+
+            // Call this on app FOREGROUND / reconnect. Cheap when nothing ended.
+            var newlyEnded = await kraty.CheckFinalizationsAsync();
+            Debug.Log($"[Kraty] {newlyEnded.Count} board(s) finalized while away.");
+            unsubscribe(); // drop the handler when leaving this screen
 
             // ── 4. JOIN a cross-event board (no score submitted) ──────────
             // Enrols the active player in the board's current period at score
@@ -204,6 +301,10 @@ namespace Kraty.Samples
                 PrintEntries(seg.Entries);
             }
         }
+
+        // Reads a scalar field off a stream event's `data` payload as a string.
+        private static string Val(LeaderboardStreamEvent ev, string key)
+            => ev.Data.TryGetValue(key, out var v) ? v?.ToString() ?? "" : "";
 
         private static void PrintEntries(List<LeaderboardEntry> entries)
         {
