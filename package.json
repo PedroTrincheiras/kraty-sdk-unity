@@ -1,6 +1,6 @@
 {
   "name": "app.kraty.sdk",
-  "version": "0.8.0",
+  "version": "0.10.0",
   "displayName": "Kraty SDK",
   "description": "C# client SDK for the Kraty game-events platform. Targets the public /sdk/v1 surface: events, leaderboards, grants, crates, lobbies. Built on .NET Standard 2.1 for Unity 2022 LTS+ and any modern .NET runtime.",
   "unity": "2022.3",
@@ -22,7 +22,7 @@
   "samples": [
     {
       "displayName": "SDK Smoke Rig",
-      "description": "MonoBehaviour panel that exercises every public SDK surface against your backend — drop on a GameObject, hit Play, click buttons. Use it to verify Editor + IL2CPP Player builds before each release.",
+      "description": "MonoBehaviour panel that exercises every public SDK surface against your backend: drop on a GameObject, hit Play, click buttons. Use it to verify Editor + IL2CPP Player builds before each release.",
       "path": "Sample~/SmokeRig"
     }
   ]

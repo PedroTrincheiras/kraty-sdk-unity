@@ -3,12 +3,12 @@
 C# **client** SDK for the [Kraty](https://kraty.io) game-events
 platform, targeting **Unity 2022 LTS+** and any modern .NET runtime.
 Built on .NET Standard 2.1 with no Unity-engine dependencies in the
-`Runtime/` tree — meaning the same package runs unmodified in standard
+`Runtime/` tree, meaning the same package runs unmodified in standard
 .NET (CLI tools, server-side bots, test suites) without an editor.
 
 > 📖 **Full reference + examples:** <https://kraty.io/docs/sdks/unity>
 >
-> The docs site has the complete guide — install via UPM, sign-in
+> The docs site has the complete guide: install via UPM, sign-in
 > patterns, every method, SSE streaming, error handling. This README
 > is just the elevator pitch.
 
@@ -33,7 +33,7 @@ In `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.6.0"
+    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.10.0"
   }
 }
 ```
@@ -45,15 +45,15 @@ Package Manager can pull directly.
 
 ### Local disk
 
-For monorepo / fork workflows: Window → Package Manager → `+` →
-Add package from disk → pick `packages/sdk-unity/package.json`.
+For monorepo / fork workflows: Window, then Package Manager, `+`,
+Add package from disk, pick `packages/sdk-unity/package.json`.
 
 ## Quickstart
 
 ```csharp
 using Kraty;
 
-// One line — the SDK lazily mints (or restores) an externalPlayerId
+// One line: the SDK lazily mints (or restores) an externalPlayerId
 // and X-Player-Secret on the first player-scoped call and persists
 // them via PlayerPrefs.
 var kraty = new Kraty(new KratyClientOptions { ApiKey = "<your-client-sdk-key>" });
@@ -84,34 +84,34 @@ Debug.Log($"playing as {kraty.ActiveExternalPlayerId}");
 
 Seven resource clients on the `Kraty` facade:
 
-- `kraty.Events` — list / start / progress
-- `kraty.Leaderboards` — read / list periods on a dashboard-configured board by key (`weekly_global`, etc.)
-- `kraty.EventLeaderboards` — read / live SSE stream the per-event-window board by UUID (what `Events.StartAsync(...)` returns as `start.Attempt.LeaderboardId`)
-- `kraty.Grants` — pending / claim / open / `CollectAllAsync`
-- `kraty.Lobbies` — read (with `BotSlots` projection for smooth fill UI)
-- `kraty.Inventory` — list / consume (platform-managed games)
-- `kraty.Wallet` — list / debit (platform-managed games)
-- `kraty.Players` — `RegisterAsync` / rotate (rarely needed; lazy bootstrap handles registration)
+- `kraty.Events`: list / start / progress
+- `kraty.Leaderboards`: read / list periods on a dashboard-configured board by key (`weekly_global`, etc.)
+- `kraty.EventLeaderboards`: read / live SSE stream the per-event-window board by UUID (what `Events.StartAsync(...)` returns as `start.Attempt.LeaderboardId`)
+- `kraty.Grants`: pending / claim / open / `CollectAllAsync`
+- `kraty.Lobbies`: read (with `BotSlots` projection for smooth fill UI)
+- `kraty.Inventory`: list / consume (platform-managed games)
+- `kraty.Wallet`: list / debit (platform-managed games)
+- `kraty.Players`: `RegisterAsync` / rotate (rarely needed; lazy bootstrap handles registration)
 
 Identity surface on the facade:
 
-- `kraty.ActiveExternalPlayerId` — id of the currently signed-in player (null until first resolve).
-- `await kraty.EnsureIdentityAsync()` — eagerly resolve / register if you want the id available before the first request.
-- `await kraty.SignInAsync(externalPlayerId, secret)` — install an explicit identity (e.g. from your own auth backend).
-- `await kraty.LogoutAsync()` — wipe persisted id + secret. The next player-scoped call lazily registers a new player.
+- `kraty.ActiveExternalPlayerId`: id of the currently signed-in player (null until first resolve).
+- `await kraty.EnsureIdentityAsync()`: eagerly resolve / register if you want the id available before the first request.
+- `await kraty.SignInAsync(externalPlayerId, secret)`: install an explicit identity (e.g. from your own auth backend).
+- `await kraty.LogoutAsync()`: wipe persisted id + secret. The next player-scoped call lazily registers a new player.
 
 Static helpers:
 
-- `Kraty.ConnectAsPlayerAsync(options, externalId, secretStore, ...)` — explicit bootstrap for the case where you want the register I/O to happen at a specific moment.
-- `Kraty.ReadStoredIdentityAsync`, `Kraty.RestoreStoredIdentityAsync`, `Kraty.ClearStoredIdentityAsync` — direct store helpers for boot-time flows.
-- `GrantPolling.PollPendingAsync(...)` — adaptive interval
-- `LobbyPolling.UntilActiveAsync(...)` — fixed-interval with timeout
+- `Kraty.ConnectAsPlayerAsync(options, externalId, secretStore, ...)`: explicit bootstrap for the case where you want the register I/O to happen at a specific moment.
+- `Kraty.ReadStoredIdentityAsync`, `Kraty.RestoreStoredIdentityAsync`, `Kraty.ClearStoredIdentityAsync`: direct store helpers for boot-time flows.
+- `GrantPolling.PollPendingAsync(...)`: adaptive interval
+- `LobbyPolling.UntilActiveAsync(...)`: fixed-interval with timeout
 
 Auth contract:
 
-- `ISecretStore` — async interface for persisting the per-player secret. Ships with `InMemorySecretStore` (tests + non-Unity) and `PlayerPrefsSecretStore` (Unity, wraps `UnityEngine.PlayerPrefs`).
+- `ISecretStore`: async interface for persisting the per-player secret. Ships with `InMemorySecretStore` (tests + non-Unity) and `PlayerPrefsSecretStore` (Unity, wraps `UnityEngine.PlayerPrefs`).
 - When `SecretStore` is omitted on `KratyClientOptions`, the SDK picks `PlayerPrefsSecretStore` on Unity and `InMemorySecretStore` everywhere else.
-- For shipped games, consider replacing `PlayerPrefsSecretStore` with a Keychain / EncryptedSharedPreferences plugin — PlayerPrefs is unencrypted on disk.
+- For shipped games, consider replacing `PlayerPrefsSecretStore` with a Keychain / EncryptedSharedPreferences plugin, since PlayerPrefs is unencrypted on disk.
 
 ## Retry + idempotency
 
@@ -237,11 +237,11 @@ scripts/sync-public-sdks.sh client-unity v0.6.0
 ```
 
 The script copies the package contents into the public repo,
-commits, pushes, tags, and creates the GitHub release —
+commits, pushes, tags, and creates the GitHub release. It is
 idempotent: re-running for the same version is a no-op.
 
 Consumers update by bumping the ref in their `manifest.json`:
 
 ```json
-"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.6.0"
+"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.10.0"
 ```

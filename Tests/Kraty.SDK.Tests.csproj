@@ -2,7 +2,7 @@
 
   <!--
     Test project for Kraty.SDK. Targets the installed SDK's runtime
-    (net10.0) — these tests don't ship to Unity, only run in plain
+    (net10.0); these tests don't ship to Unity, only run in plain
     dotnet. The runtime/ source compiles in this context too thanks
     to the project reference.
   -->

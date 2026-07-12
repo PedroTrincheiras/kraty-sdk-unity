@@ -6,8 +6,8 @@ namespace Kraty
 {
     /// <summary>
     /// Public response types for the <c>/sdk/v1</c> surface, mirroring
-    /// the OpenAPI spec at <c>apps/backend/openapi.json</c>. Plain DTOs
-    /// — Newtonsoft.Json deserializes into them via the
+    /// the OpenAPI spec at <c>apps/backend/openapi.json</c>. Plain DTOs;
+    /// Newtonsoft.Json deserializes into them via the
     /// <see cref="JsonPropertyAttribute"/> hints.
     ///
     /// LocalizedString-ish fields (<c>name</c>, <c>description</c>) and
@@ -46,7 +46,7 @@ namespace Kraty
 
         /// <summary>
         /// Milestones whose threshold was crossed by THIS progress
-        /// call. Always present (empty list when nothing fired) — never
+        /// call. Always present (empty list when nothing fired) and never
         /// null, so callers can iterate without a null check. Each
         /// entry's <c>Grants</c> array carries the concrete payout
         /// rows in the same shape <c>GET /grants/pending</c> returns.
@@ -55,10 +55,23 @@ namespace Kraty
     }
 
     /// <summary>
+    /// Result of <c>Events.FinishAsync</c>: the finalized attempt plus how
+    /// it resolved: "completed" (a score-attack end, or a target that was
+    /// already met → completion rewards) or "expired" (a target event ended
+    /// before its target, participation only).
+    /// </summary>
+    public sealed class FinishAttemptResult
+    {
+        [JsonProperty("attempt")] public Attempt Attempt { get; set; } = new();
+
+        [JsonProperty("outcome")] public string Outcome { get; set; } = "completed";
+    }
+
+    /// <summary>
     /// A single milestone that fired during a <see cref="EventsClient.ProgressAsync"/>
     /// call. The <c>Key</c> is the designer-assigned id (use it to look
     /// up icon/copy/animation in your asset bundle). <c>Grants</c> is the
-    /// concrete reward rows the engine wrote — render those directly or
+    /// concrete reward rows the engine wrote; render those directly or
     /// hand them to your existing grant-handling code.
     /// </summary>
     public sealed class MilestoneFired
@@ -68,7 +81,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// One slot in an event's <c>entryCost.currencies</c> list — paid
+    /// One slot in an event's <c>entryCost.currencies</c> list, paid
     /// from the player's wallet on attempt start.
     /// </summary>
     public sealed class EntryCostCurrency
@@ -78,7 +91,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// One slot in an event's <c>entryCost.items</c> list — consumed
+    /// One slot in an event's <c>entryCost.items</c> list, consumed
     /// from inventory on attempt start.
     /// </summary>
     public sealed class EntryCostItem
@@ -89,7 +102,7 @@ namespace Kraty
 
     /// <summary>
     /// Transactional cost paid on <see cref="EventsClient.StartAsync"/>.
-    /// Server atomically debits + creates the attempt in a single tx —
+    /// Server atomically debits + creates the attempt in a single tx, so
     /// partial debits never persist. Missing entry triggers a
     /// <see cref="KratyApiError"/> with code
     /// <c>insufficient_entry_cost</c>.
@@ -142,7 +155,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// One milestone reward — fires when the player crosses
+    /// One milestone reward that fires when the player crosses
     /// <see cref="Threshold"/> on <see cref="MetricKey"/> during a
     /// single attempt. Use this to render "next milestone: 5 rabbits
     /// → 200 cash + 5 bullets" in your UI.
@@ -167,10 +180,10 @@ namespace Kraty
     /// Reward policy summary with inline bundle previews. Mirrors the
     /// four sealed policy types the backend supports:
     /// <list type="bullet">
-    ///   <item><description><c>none</c> — event has no rewards.</description></item>
-    ///   <item><description><c>fixed_bundle</c> — everyone who completes gets <see cref="Bundle"/>.</description></item>
-    ///   <item><description><c>rank_scaled</c> — bundle picked by leaderboard rank; see <see cref="Tiers"/>.</description></item>
-    ///   <item><description><c>shared_pool</c> — currency pool split among winners; see <see cref="Pool"/> and <see cref="CurrencyKey"/>.</description></item>
+    ///   <item><description><c>none</c>: event has no rewards.</description></item>
+    ///   <item><description><c>fixed_bundle</c>: everyone who completes gets <see cref="Bundle"/>.</description></item>
+    ///   <item><description><c>rank_scaled</c>: bundle picked by leaderboard rank; see <see cref="Tiers"/>.</description></item>
+    ///   <item><description><c>shared_pool</c>: currency pool split among winners; see <see cref="Pool"/> and <see cref="CurrencyKey"/>.</description></item>
     /// </list>
     /// </summary>
     public sealed class RewardPolicySummary
@@ -190,7 +203,7 @@ namespace Kraty
     {
         [JsonProperty("eventKey")] public string EventKey { get; set; } = string.Empty;
         /// <summary>
-        /// LocalizedString — string or object, see backend docs/02 § English-only v1.
+        /// LocalizedString (string or object); see backend docs/02 § English-only v1.
         /// Kept as <see cref="JToken"/> so the consumer can
         /// inspect the shape without the SDK locking it down prematurely.
         /// </summary>
@@ -218,11 +231,11 @@ namespace Kraty
 
         /// <summary>
         /// Free-form metric definitions from the event row (key,
-        /// target, cap, scoreWeight, …) — same shape the server stores.
+        /// target, cap, scoreWeight, …); same shape the server stores.
         /// </summary>
         [JsonProperty("metrics")] public List<Dictionary<string, JToken>> Metrics { get; set; } = new();
 
-        /// <summary>Player-condition tree — null when there's no join gate.</summary>
+        /// <summary>Player-condition tree; null when there's no join gate.</summary>
         [JsonProperty("entryRequirement")] public Dictionary<string, JToken>? EntryRequirement { get; set; }
 
         /// <summary>
@@ -234,7 +247,7 @@ namespace Kraty
         /// <summary>
         /// Studio-defined free-form blob. Event-level metadata merged
         /// with the active window's metadata (window keys win). Use
-        /// for UI hints — banner image keys, theme colors,
+        /// for UI hints: banner image keys, theme colors,
         /// special-event copy.
         /// </summary>
         [JsonProperty("metadata")] public Dictionary<string, JToken> Metadata { get; set; } = new();
@@ -255,7 +268,7 @@ namespace Kraty
 
     /// <summary>
     /// One item row as exposed to game clients via the catalog
-    /// endpoint. Display-relevant fields only — internal config and
+    /// endpoint. Display-relevant fields only; internal config and
     /// archival timestamps stay off the SDK wire format.
     /// </summary>
     public sealed class CatalogItem
@@ -300,15 +313,15 @@ namespace Kraty
         /// <summary>One of <c>player</c>, <c>bot</c>.</summary>
         [JsonProperty("kind")] public string Kind { get; set; } = string.Empty;
         [JsonProperty("name")] public string? Name { get; set; }
-        [JsonProperty("avatarUrl")] public string? AvatarUrl { get; set; }
+        [JsonProperty("avatar")] public string? Avatar { get; set; }
         [JsonProperty("score")] public double Score { get; set; }
         [JsonProperty("rank")] public int Rank { get; set; }
         /// <summary>
         /// <c>true</c> when this entry is the player calling the API
         /// (resolved from the <c>externalId</c> passed via
         /// <c>includeSelf</c>). Highlight rows off this rather than
-        /// matching <c>ParticipantId</c> to the external id yourself —
-        /// the server surfaces the internal player UUID, not the
+        /// matching <c>ParticipantId</c> to the external id yourself,
+        /// since the server surfaces the internal player UUID, not the
         /// external one. Always <c>false</c> on entries without a
         /// self-context request, and on bot entries regardless.
         /// </summary>
@@ -322,7 +335,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Response from <see cref="LeaderboardsClient.ReadAsync"/> — a
+    /// Response from <see cref="LeaderboardsClient.ReadAsync"/>: a
     /// configurable, cross-event leaderboard addressed by its game-scoped
     /// <c>key</c> (e.g. <c>"weekly_global"</c>). This is what most games
     /// render; the auto-created per-event-window board is
@@ -333,8 +346,8 @@ namespace Kraty
         /// <summary>The board's stable game-scoped key (e.g. <c>"weekly_global"</c>).</summary>
         [JsonProperty("key")] public string Key { get; set; } = string.Empty;
         /// <summary>UUID of the leaderboard config row.</summary>
-        [JsonProperty("sharedLeaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
-        /// <summary>One of <c>global</c>, <c>regional</c>, etc — set in the board's config.</summary>
+        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        /// <summary>One of <c>global</c>, <c>regional</c>, etc.; set in the board's config.</summary>
         [JsonProperty("scope")] public string? Scope { get; set; }
         /// <summary>One of <c>daily</c>, <c>weekly</c>, <c>monthly</c>, <c>never</c>.</summary>
         [JsonProperty("resetCadence")] public string? ResetCadence { get; set; }
@@ -375,13 +388,13 @@ namespace Kraty
     public sealed class LeaderboardPeriods
     {
         [JsonProperty("key")] public string Key { get; set; } = string.Empty;
-        [JsonProperty("sharedLeaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
         [JsonProperty("currentPeriodStartedAt")] public string CurrentPeriodStartedAt { get; set; } = string.Empty;
         [JsonProperty("periods")] public List<LeaderboardPeriod> Periods { get; set; } = new();
     }
 
     /// <summary>
-    /// Response from <see cref="EventLeaderboardsClient.ReadAsync"/> — the
+    /// Response from <see cref="EventLeaderboardsClient.ReadAsync"/>: the
     /// auto-generated per-event-window leaderboard, addressed by the UUID
     /// returned in <c>Events.StartAsync(...)</c>'s
     /// <c>attempt.LeaderboardId</c>. For most game UI you want
@@ -392,7 +405,7 @@ namespace Kraty
         [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
         [JsonProperty("mode")] public string Mode { get; set; } = string.Empty;
         [JsonProperty("finalized")] public bool Finalized { get; set; }
-        /// <summary>Why the board finalized — one of the
+        /// <summary>Why the board finalized; one of the
         /// <see cref="FinalizationReason"/> constants
         /// (<c>session_terminated</c> vs <c>window_closed</c>), or null while
         /// the board is still live.</summary>
@@ -422,7 +435,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Response from <see cref="LeaderboardsClient.StandingsAsync"/> —
+    /// Response from <see cref="LeaderboardsClient.StandingsAsync"/>:
     /// flexible multi-segment standings, the versatile counterpart to
     /// <see cref="Leaderboard"/>. Returns one <see cref="StandingsSegment"/>
     /// block per segment selected by <c>scope</c>, live or for a past
@@ -433,8 +446,8 @@ namespace Kraty
         /// <summary>The board's stable game-scoped key (e.g. <c>"weekly_global"</c>).</summary>
         [JsonProperty("key")] public string Key { get; set; } = string.Empty;
         /// <summary>UUID of the leaderboard config row.</summary>
-        [JsonProperty("sharedLeaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
-        /// <summary>One of <c>game</c>, <c>studio</c>, etc — set in the board's config.</summary>
+        [JsonProperty("leaderboardId")] public string LeaderboardId { get; set; } = string.Empty;
+        /// <summary>One of <c>game</c>, <c>studio</c>, etc.; set in the board's config.</summary>
         [JsonProperty("scope")] public string Scope { get; set; } = string.Empty;
         /// <summary>One of <c>never</c>, <c>weekly</c>, <c>monthly</c>.</summary>
         [JsonProperty("resetCadence")] public string ResetCadence { get; set; } = string.Empty;
@@ -484,7 +497,7 @@ namespace Kraty
         [JsonProperty("participantCount")] public int ParticipantCount { get; set; }
 
         /// <summary>
-        /// Projected bot count at read time — derived server-side from
+        /// Projected bot count at read time, derived server-side from
         /// the lobby's age and the matchmaking drip interval. Grows
         /// monotonically while the lobby is <c>forming</c>. UI typically
         /// renders <c>ParticipantCount + BotSlots</c> filled cells out
@@ -536,7 +549,7 @@ namespace Kraty
         public int? Limit { get; set; }
         /// <summary>
         /// Bucket value for segmented boards. Required only for
-        /// <c>context</c> segmentation — pass the same value your SDK
+        /// <c>context</c> segmentation: pass the same value your SDK
         /// supplied in <c>playerContext[segmentation.key]</c> when
         /// starting the contributing attempt. For
         /// <c>progression</c>-segmented boards leave this null: the
@@ -565,7 +578,7 @@ namespace Kraty
         /// <summary>
         /// Bucket value for segmented boards. Required only for
         /// <c>context</c> segmentation. For <c>progression</c>-segmented
-        /// boards leave this null — the server derives the player's
+        /// boards leave this null; the server derives the player's
         /// division. Unsegmented boards ignore it.
         /// </summary>
         public string? Segment { get; set; }
@@ -586,10 +599,10 @@ namespace Kraty
         /// <summary>
         /// Which segments to return (default <c>"all"</c>):
         /// <list type="bullet">
-        ///   <item><description><c>"self_segment"</c> — the caller's single home segment.</description></item>
-        ///   <item><description><c>"mine"</c> — every segment the caller appears in.</description></item>
-        ///   <item><description><c>"segment"</c> — the one named in <see cref="Segment"/>.</description></item>
-        ///   <item><description><c>"all"</c> — every segment for the period.</description></item>
+        ///   <item><description><c>"self_segment"</c>: the caller's single home segment.</description></item>
+        ///   <item><description><c>"mine"</c>: every segment the caller appears in.</description></item>
+        ///   <item><description><c>"segment"</c>: the one named in <see cref="Segment"/>.</description></item>
+        ///   <item><description><c>"all"</c>: every segment for the period.</description></item>
         /// </list>
         /// <c>self_segment</c>/<c>mine</c> resolve the caller from
         /// <see cref="ExternalId"/> (or the SDK's active identity).
@@ -635,7 +648,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Result of <see cref="LeaderboardsClient.SubmitScoreAsync"/> — the
+    /// Result of <see cref="LeaderboardsClient.SubmitScoreAsync"/>: the
     /// player's new standing on the board after the write.
     /// <see cref="Rank"/> is <c>null</c> when the board can't resolve a
     /// position for the caller yet (e.g. the period just rolled over,
@@ -660,11 +673,11 @@ namespace Kraty
         /// <summary>
         /// Bucket value for segmented boards. Required only for
         /// <c>context</c> segmentation. For <c>progression</c>-segmented
-        /// boards leave this null — the server derives the player's
+        /// boards leave this null; the server derives the player's
         /// division. Unsegmented boards ignore it.
         /// </summary>
         public string? Segment { get; set; }
-        /// <summary>Optional override — leave null to let the client auto-stamp one.</summary>
+        /// <summary>Optional override; leave null to let the client auto-stamp one.</summary>
         public string? IdempotencyKey { get; set; }
         /// <summary>
         /// Override the active player (server-side tooling only). Leave
@@ -675,7 +688,7 @@ namespace Kraty
 
     /// <summary>
     /// Result of <c>players.register()</c>. The plaintext
-    /// <see cref="Secret"/> is only ever surfaced HERE — store it
+    /// <see cref="Secret"/> is only ever surfaced HERE, so store it
     /// locally on the device immediately (e.g. <c>PlayerPrefs</c> via
     /// <c>PlayerPrefsSecretStore</c>). A subsequent call to
     /// <see cref="PlayersClient.RegisterAsync"/> for the same player
@@ -695,7 +708,7 @@ namespace Kraty
     /// One row in the player's platform-managed inventory. Returned by
     /// <c>GET /sdk/v1/players/:externalId/inventory</c>. The item's
     /// display name and other catalog metadata live on the <c>items</c>
-    /// table — the SDK only carries the per-player quantity + free-form
+    /// table; the SDK only carries the per-player quantity + free-form
     /// metadata stamped on deposits (e.g. a granted potion's roll
     /// details).
     /// </summary>
@@ -725,14 +738,14 @@ namespace Kraty
 
     /// <summary>
     /// Input for <see cref="InventoryClient.ConsumeAsync"/>. The server
-    /// requires <see cref="IdempotencyKey"/> for consume — the SDK
+    /// requires <see cref="IdempotencyKey"/> for consume; the SDK
     /// auto-generates one if you leave it null, matching the
     /// auto-stamping behavior on every other POST endpoint.
     /// </summary>
     public sealed class ConsumeItemInput
     {
         /// <summary>
-        /// Positive integer — the SDK does NOT enforce; the server
+        /// Positive integer; the SDK does NOT enforce this, so the server
         /// validates and returns 400 on zero / negative.
         /// </summary>
         [JsonProperty("quantity")] public int Quantity { get; set; }
@@ -743,7 +756,7 @@ namespace Kraty
         /// </summary>
         [JsonProperty("reason")] public string? Reason { get; set; }
 
-        /// <summary>Optional override — leave null to let the client auto-stamp one.</summary>
+        /// <summary>Optional override; leave null to let the client auto-stamp one.</summary>
         [JsonProperty("idempotencyKey")] public string? IdempotencyKey { get; set; }
     }
 
@@ -763,7 +776,7 @@ namespace Kraty
     /// <summary>
     /// Input for <see cref="WalletClient.DebitAsync"/>. Same idempotency
     /// story as <see cref="ConsumeItemInput"/>. Credits are intentionally
-    /// NOT in the SDK — only the studio's backend
+    /// NOT in the SDK; only the studio's backend
     /// (<c>/server/v1/...</c>) can mint balance, so a client SDK that
     /// exposed <c>credit</c> would invite money printing.
     /// </summary>
@@ -782,7 +795,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Inventory list response wrapper — the backend nests the list
+    /// Inventory list response wrapper; the backend nests the list
     /// inside <c>{ "data": { "items": [...] } }</c>.
     /// </summary>
     internal sealed class InventoryListEnvelope
@@ -791,7 +804,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Wallet list response wrapper — the backend nests the list
+    /// Wallet list response wrapper; the backend nests the list
     /// inside <c>{ "data": { "wallet": [...] } }</c>.
     /// </summary>
     internal sealed class WalletListEnvelope

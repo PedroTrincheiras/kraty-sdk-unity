@@ -17,7 +17,7 @@ namespace Kraty
         public EventsClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/players/:externalId/events</c> — events whose
+        /// GET <c>/sdk/v1/players/:externalId/events</c>: events whose
         /// current window the active player can start now. Pass
         /// <paramref name="as"/> to address a different player
         /// (server-side tooling only).
@@ -36,12 +36,12 @@ namespace Kraty
         }
 
         /// <summary>
-        /// POST <c>/sdk/v1/players/:p/events/:e/start</c> — start an
+        /// POST <c>/sdk/v1/players/:p/events/:e/start</c>: start an
         /// attempt for the active player. Atomically debits any
         /// configured entry cost; on insufficient resources throws
         /// <see cref="KratyApiError"/> with
         /// <c>IsInsufficientEntryCost == true</c> (the debit is
-        /// rolled back — partial spends never persist).
+        /// rolled back, so partial spends never persist).
         ///
         /// <para>
         /// If matchmaking is still forming, throws with
@@ -66,18 +66,18 @@ namespace Kraty
                 cancellationToken: ct
             ).ConfigureAwait(false);
             var data = env.Data ?? new StartAttemptResponse();
-            // Track the session/event board for finalization catch-up (docs/05b) —
+            // Track the session/event board for finalization catch-up (docs/05b);
             // fire-and-forget so it never adds latency to start.
             if (!string.IsNullOrEmpty(data.LeaderboardId))
             {
-                _ = _client.TrackMembershipAsync(MembershipRef.EventBoard(data.LeaderboardId, eventKey));
+                _ = _client.TrackMembershipAsync(MembershipRef.EventLeaderboard(data.LeaderboardId, eventKey));
             }
             return data;
         }
 
         /// <summary>
         /// POST <c>/sdk/v1/players/:p/events/:e/attempts/:a/progress</c>
-        /// — push a metric update for the active player. Mode
+        /// pushes a metric update for the active player. Mode
         /// <c>"set"</c> writes the value, <c>"increment"</c> adds.
         /// Completing the metric target ends the attempt and fires
         /// the reward pipeline server-side.
@@ -100,10 +100,36 @@ namespace Kraty
             ).ConfigureAwait(false);
             return env.Data ?? new ProgressResult();
         }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/events/:e/attempts/:a/finish</c>: end
+        /// an in-progress attempt now, locking in its current score. This is
+        /// the player-driven "I'm done" / "cash out my run" action, needed
+        /// for score-attack events (no completion target) where the player
+        /// decides when the run ends. <c>Outcome</c> is "completed"
+        /// (score-attack end / target met, so completion rewards roll) or
+        /// "expired" (a target event ended early). Pull rewards afterwards
+        /// with <c>Grants.CollectAllAsync</c>.
+        /// </summary>
+        public async Task<FinishAttemptResult> FinishAsync(
+            string eventKey,
+            string attemptId,
+            string? @as = null,
+            CancellationToken ct = default
+        )
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<FinishAttemptResult>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/events/{Uri.EscapeDataString(eventKey)}/attempts/{Uri.EscapeDataString(attemptId)}/finish",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new FinishAttemptResult();
+        }
     }
 
     /// <summary>
-    /// Resource client for <c>/sdk/v1/leaderboards/:key</c> — the
+    /// Resource client for <c>/sdk/v1/leaderboards/:key</c>: the
     /// dashboard-configured cross-event leaderboards your studio defines
     /// (e.g. <c>"weekly_global"</c>, <c>"weekly_region"</c>). This is the
     /// surface most game UI wants. For the auto-created per-event-window
@@ -115,13 +141,13 @@ namespace Kraty
         public LeaderboardsClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/leaderboards/:key</c> — snapshot read of a
+        /// GET <c>/sdk/v1/leaderboards/:key</c>: snapshot read of a
         /// configurable, cross-event leaderboard.
         ///
         /// <para>
         /// <c>opts.Segment</c> is required only for <c>context</c>
         /// segmentation. For <c>progression</c>-segmented boards leave
-        /// it null — the server derives the caller's division.
+        /// it null and the server derives the caller's division.
         /// Unsegmented boards ignore it.
         /// </para>
         /// </summary>
@@ -142,7 +168,7 @@ namespace Kraty
             if (opts.IncludeSelf)
             {
                 // Lazily resolve the active player when the caller didn't pass an
-                // explicit ExternalId — same contract as every player-scoped method.
+                // explicit ExternalId; same contract as every player-scoped method.
                 var externalId = !string.IsNullOrEmpty(opts.ExternalId)
                     ? opts.ExternalId!
                     : (await _client.EnsureIdentityAsync(ct).ConfigureAwait(false)).ExternalPlayerId;
@@ -160,7 +186,7 @@ namespace Kraty
         }
 
         /// <summary>
-        /// POST <c>/sdk/v1/players/:p/leaderboards/:key/score</c> —
+        /// POST <c>/sdk/v1/players/:p/leaderboards/:key/score</c>:
         /// submit a score for the active player directly to a
         /// dashboard-configured board, outside an event attempt.
         /// Returns the player's new score + rank.
@@ -168,7 +194,7 @@ namespace Kraty
         /// <para>
         /// <c>opts.Segment</c> is required only for <c>context</c>
         /// segmentation (pass the bucket value). For
-        /// <c>progression</c>-segmented boards leave it null — the
+        /// <c>progression</c>-segmented boards leave it null and the
         /// server derives the player's division; unsegmented boards
         /// ignore it. Auto-stamped idempotency key unless you provide
         /// one via <c>opts.IdempotencyKey</c>.
@@ -205,10 +231,10 @@ namespace Kraty
         }
 
         /// <summary>
-        /// POST <c>/sdk/v1/players/:p/leaderboards/:key/join</c> — add the
+        /// POST <c>/sdk/v1/players/:p/leaderboards/:key/join</c>: add the
         /// active player to a configurable board at score 0 WITHOUT
         /// submitting a score (they just "appear"), and return the current
-        /// standings for their segment. Idempotent — never resets an
+        /// standings for their segment. Idempotent; never resets an
         /// existing score.
         ///
         /// <para>
@@ -242,7 +268,7 @@ namespace Kraty
         }
 
         /// <summary>
-        /// GET <c>/sdk/v1/leaderboards/:key/standings</c> — flexible
+        /// GET <c>/sdk/v1/leaderboards/:key/standings</c>: flexible
         /// multi-segment read. Returns one block per segment
         /// (<c>opts.Scope</c> picks which), each flagging the caller
         /// (<c>isSelf</c> on entries, <c>selfRank</c>, <c>participated</c>).
@@ -288,7 +314,7 @@ namespace Kraty
         }
 
         /// <summary>
-        /// GET <c>/sdk/v1/leaderboards/:key/periods</c> — list the
+        /// GET <c>/sdk/v1/leaderboards/:key/periods</c>: list the
         /// finalized snapshot periods available for this leaderboard,
         /// newest first. Pair with
         /// <see cref="ReadAsync"/> + <see cref="LeaderboardReadOptions.Period"/>
@@ -314,7 +340,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Resource client for <c>/sdk/v1/event-leaderboards/:id</c> — the
+    /// Resource client for <c>/sdk/v1/event-leaderboards/:id</c>: the
     /// auto-generated per-event-window leaderboard, addressed by the
     /// UUID <c>Events.StartAsync(...)</c> returns in
     /// <c>attempt.LeaderboardId</c>. Includes Server-Sent-Events live
@@ -325,12 +351,12 @@ namespace Kraty
     {
         private readonly KratyClient _client;
         public EventLeaderboardsClient(KratyClient client) => _client = client;
-        /// <summary>The underlying client — lets the live subscription route
+        /// <summary>The underlying client; lets the live subscription route
         /// `finalized` events into the finalization registry.</summary>
         internal KratyClient Client => _client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/event-leaderboards/:id</c> — snapshot read of
+        /// GET <c>/sdk/v1/event-leaderboards/:id</c>: snapshot read of
         /// one event window's leaderboard. The id is the UUID
         /// <c>Events.StartAsync(...)</c> returns as
         /// <c>start.Attempt.LeaderboardId</c>.
@@ -363,7 +389,7 @@ namespace Kraty
         }
 
         /// <summary>
-        /// POST <c>/sdk/v1/players/:p/event-leaderboards/:id/join</c> — add
+        /// POST <c>/sdk/v1/players/:p/event-leaderboards/:id/join</c>: add
         /// the active player to a per-event-window board at score 0 WITHOUT
         /// starting a scoring attempt, and return the current board.
         /// Idempotent. Throws <see cref="KratyApiError"/> with code
@@ -393,7 +419,7 @@ namespace Kraty
         }
 
         /// <summary>
-        /// GET <c>/sdk/v1/event-leaderboards/:id/stream</c> — opens a
+        /// GET <c>/sdk/v1/event-leaderboards/:id/stream</c>: opens a
         /// Server-Sent Events subscription that pushes score updates
         /// in real time. Returns a <see cref="LeaderboardStream"/> handle
         /// the caller drives via its <c>OnEvent</c> / <c>OnError</c>
@@ -401,13 +427,13 @@ namespace Kraty
         ///
         /// <para>
         /// Event kinds: <c>ready</c>, <c>score_update</c>, <c>closed</c>.
-        /// Does NOT auto-reconnect on transport drop — handle errors via
+        /// Does NOT auto-reconnect on transport drop; handle errors via
         /// the returned stream's <c>OnError</c> and re-call
         /// <see cref="LiveAsync"/> after a backoff if you want resumption.
         /// </para>
         ///
         /// <para>
-        /// Low-level — prefer <see cref="Subscribe"/> for game UIs.
+        /// Low-level; prefer <see cref="Subscribe"/> for game UIs.
         /// </para>
         /// </summary>
         public Task<LeaderboardStream> LiveAsync(string leaderboardId, CancellationToken ct = default)
@@ -432,7 +458,7 @@ namespace Kraty
         /// score updates with low latency.
         ///
         /// <para>
-        /// Callbacks fire on the HTTP background thread — marshal to
+        /// Callbacks fire on the HTTP background thread; marshal to
         /// Unity's main thread before touching <c>UnityEngine</c> APIs.
         /// Returns a handle whose <c>CancelAsync</c> / <c>Dispose</c>
         /// tear down both transports.
@@ -463,7 +489,7 @@ namespace Kraty
     {
         /// <summary>Background read cadence. Default 15000ms. Set to 0 to disable polling (SSE-only).</summary>
         public int PollIntervalMs { get; set; } = 15000;
-        /// <summary>Optional — receives transport / parse errors. SSE errors are non-fatal; the poll keeps running.</summary>
+        /// <summary>Optional; receives transport / parse errors. SSE errors are non-fatal; the poll keeps running.</summary>
         public Action<Exception>? OnError { get; set; }
     }
 
@@ -520,7 +546,7 @@ namespace Kraty
         {
             if (Volatile.Read(ref _closed) == 1) return;
             // A live `finalized` event also updates the membership registry (not
-            // just the callback) through the same single writer as catch-up —
+            // just the callback) through the same single writer as catch-up;
             // see docs/05b. Fire-and-forget; the user still gets `ev` below.
             if (ev.Kind == "finalized")
             {
@@ -631,7 +657,7 @@ namespace Kraty
         public GrantsClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/players/:p/pending-grants</c> — empty list
+        /// GET <c>/sdk/v1/players/:p/pending-grants</c>: empty list
         /// for unknown players (not a 404).
         /// </summary>
         public async Task<List<Grant>> ListPendingAsync(
@@ -652,7 +678,7 @@ namespace Kraty
 
         /// <summary>
         /// POST <c>/sdk/v1/players/:p/grants/:g/claim</c> for the
-        /// active player. Idempotent — claiming an already-claimed
+        /// active player. Idempotent; claiming an already-claimed
         /// grant returns the same row.
         /// </summary>
         public async Task<Grant> ClaimAsync(
@@ -672,7 +698,7 @@ namespace Kraty
 
         /// <summary>
         /// POST <c>/sdk/v1/players/:p/crates/:g/open</c> for the
-        /// active player. Idempotent on the crate id — replays
+        /// active player. Idempotent on the crate id; replays
         /// return the previously-rolled contents grant.
         /// </summary>
         public async Task<OpenCrateResponse> OpenAsync(
@@ -698,7 +724,7 @@ namespace Kraty
         ///
         /// <para>
         /// Errors per-grant are caught and surfaced in
-        /// <see cref="CollectAllResult.Failures"/> — one bad grant
+        /// <see cref="CollectAllResult.Failures"/>; one bad grant
         /// doesn't abort the whole sweep. The remaining grants still
         /// get processed. Callers can inspect failures + retry the
         /// individual ones later.
@@ -707,7 +733,7 @@ namespace Kraty
         /// <para>
         /// Order is server-determined (whatever
         /// <see cref="ListPendingAsync"/> returns). Crates open BEFORE
-        /// rewards are claimed — the rolled-contents grant a crate
+        /// rewards are claimed; the rolled-contents grant a crate
         /// produces lands in the NEXT <see cref="ListPendingAsync"/>,
         /// so a recursive call would catch it; we deliberately don't
         /// recurse to keep the call bounded. Re-invoke after the first
@@ -748,7 +774,7 @@ namespace Kraty
     /// <summary>
     /// One pending grant that <see cref="GrantsClient.CollectAllAsync"/>
     /// couldn't process. The other grants in the same sweep still went
-    /// through — inspect <see cref="Error"/> and retry the individual
+    /// through; inspect <see cref="Error"/> and retry the individual
     /// operation.
     /// </summary>
     public sealed class CollectAllFailure
@@ -794,7 +820,7 @@ namespace Kraty
     /// <summary>
     /// Resource client for <c>/sdk/v1/players/:p/inventory(/...)</c>.
     /// Only surfaces meaningful data for games whose
-    /// <c>settings.inventoryManagement</c> is <c>'platform'</c> — under
+    /// <c>settings.inventoryManagement</c> is <c>'platform'</c>; under
     /// studio-managed mode the lists come back empty (the studio's own
     /// backend holds the canonical state). The SDK doesn't expose
     /// grant / admin-credit endpoints; those are server-API only.
@@ -805,7 +831,7 @@ namespace Kraty
         public InventoryClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/players/:p/inventory</c> — every item the
+        /// GET <c>/sdk/v1/players/:p/inventory</c>: every item the
         /// player currently holds (quantity > 0). Ordering is not
         /// guaranteed; sort client-side if you need it.
         /// </summary>
@@ -823,7 +849,7 @@ namespace Kraty
         }
 
         /// <summary>
-        /// POST <c>/sdk/v1/players/:p/inventory/:itemKey/consume</c> —
+        /// POST <c>/sdk/v1/players/:p/inventory/:itemKey/consume</c>:
         /// atomic decrement on the active player's inventory.
         /// Auto-stamped idempotency key unless you provide one.
         /// Throws <see cref="KratyApiError"/> with code <c>conflict</c>
@@ -859,7 +885,7 @@ namespace Kraty
         public WalletClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/players/:p/wallet</c> — every economy entry
+        /// GET <c>/sdk/v1/players/:p/wallet</c>: every economy entry
         /// the player has touched. Returns zero-balance rows alongside
         /// positive ones, so a wallet that's been emptied still
         /// surfaces. Filter client-side if you only want live balances.
@@ -878,10 +904,10 @@ namespace Kraty
         }
 
         /// <summary>
-        /// POST <c>/sdk/v1/players/:p/wallet/:economyKey/debit</c> —
+        /// POST <c>/sdk/v1/players/:p/wallet/:economyKey/debit</c>:
         /// atomic decrement on the active player's wallet. 409 on
         /// insufficient balance. Credit is intentionally not exposed
-        /// here — only the studio's backend can mint balance.
+        /// here; only the studio's backend can mint balance.
         /// </summary>
         public async Task<DebitWalletResult> DebitAsync(
             string economyKey,
@@ -903,7 +929,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Resource client for <c>/sdk/v1/players/:p/register</c> — the
+    /// Resource client for <c>/sdk/v1/players/:p/register</c>: the
     /// zero-trust bootstrap. Most apps never call this directly:
     /// <see cref="KratyClient.EnsureIdentityAsync"/> handles register
     /// lazily on the first player-scoped call. Reach for
@@ -916,7 +942,7 @@ namespace Kraty
         public PlayersClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// POST <c>/sdk/v1/players/:externalId/register</c> — creates
+        /// POST <c>/sdk/v1/players/:externalId/register</c>: creates
         /// the player row if it doesn't exist + mints a per-player
         /// secret. Throws <see cref="KratyApiError"/> with
         /// <c>IsPlayerAlreadyRegistered == true</c> if the player has
@@ -948,7 +974,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Resource client for <c>/sdk/v1/catalog</c> — single-shot read
+    /// Resource client for <c>/sdk/v1/catalog</c>: single-shot read
     /// of every item + currency configured for the calling game.
     /// Studios call this once at boot and cache locally; pairs with
     /// <see cref="EventsClient.ListForPlayerAsync"/> (which inlines
@@ -962,7 +988,7 @@ namespace Kraty
         public CatalogClient(KratyClient client) => _client = client;
 
         /// <summary>
-        /// GET <c>/sdk/v1/catalog</c> — items + currencies for the
+        /// GET <c>/sdk/v1/catalog</c>: items + currencies for the
         /// calling game. Game is derived from the API key.
         /// </summary>
         public async Task<Catalog> ReadAsync(CancellationToken ct = default)

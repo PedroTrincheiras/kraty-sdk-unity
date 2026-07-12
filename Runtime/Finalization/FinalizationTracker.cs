@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 
 namespace Kraty
 {
-    // Client finalization catch-up — see docs/05b. Ported from the TS SDK
+    // Client finalization catch-up; see docs/05b. Ported from the TS SDK
     // reference (packages/client/sdk-typescript/src/finalization.ts).
     //
     // CORE INVARIANT: a finalization is recorded through EXACTLY ONE writer,
@@ -19,14 +19,14 @@ namespace Kraty
     // ReportedAt. That is what makes delivery exactly-once across live + catch-up.
 
     /// <summary>The kind of board a membership refers to. Reference these
-    /// constants instead of hardcoding the wire strings —
-    /// e.g. <c>MembershipKind.EventBoard</c>, never <c>"event_board"</c>.</summary>
+    /// constants instead of hardcoding the wire strings,
+    /// e.g. <c>MembershipKind.EventLeaderboard</c>, never <c>"event_leaderboard"</c>.</summary>
     public static class MembershipKind
     {
         /// <summary>A per-event (or per-session) board a player is placed on.</summary>
-        public const string EventBoard = "event_board";
-        /// <summary>A recurring shared leaderboard (catch-up deferred — see docs/05b).</summary>
-        public const string SharedBoard = "shared_board";
+        public const string EventLeaderboard = "event_leaderboard";
+        /// <summary>A recurring leaderboard (catch-up deferred; see docs/05b).</summary>
+        public const string Leaderboard = "leaderboard";
     }
 
     /// <summary>Why a board finalized. The precise reasons come from the live SSE
@@ -38,7 +38,7 @@ namespace Kraty
         public const string SessionTerminated = "session_terminated";
         /// <summary>The event window closed.</summary>
         public const string WindowClosed = "window_closed";
-        /// <summary>A recurring shared board rolled to a new period.</summary>
+        /// <summary>A recurring leaderboard rolled to a new period.</summary>
         public const string PeriodRolled = "period_rolled";
         /// <summary>Ended, but the precise cause is unknown.</summary>
         public const string Finalized = "finalized";
@@ -51,24 +51,24 @@ namespace Kraty
         public const string Bot = "bot";
     }
 
-    /// <summary>A tracked board reference — either a per-event board (UUID) or a
-    /// configurable/shared board (key + period).</summary>
+    /// <summary>A tracked board reference: either a per-event board (UUID) or a
+    /// configurable leaderboard (key + period).</summary>
     public sealed class MembershipRef
     {
-        [JsonProperty("kind")] public string Kind { get; set; } = MembershipKind.EventBoard;
+        [JsonProperty("kind")] public string Kind { get; set; } = MembershipKind.EventLeaderboard;
         [JsonProperty("leaderboardId")] public string? LeaderboardId { get; set; }
         [JsonProperty("eventKey")] public string? EventKey { get; set; }
         [JsonProperty("key")] public string? Key { get; set; }
         [JsonProperty("period")] public string? Period { get; set; }
 
-        public static MembershipRef EventBoard(string leaderboardId, string? eventKey = null) =>
-            new() { Kind = MembershipKind.EventBoard, LeaderboardId = leaderboardId, EventKey = eventKey };
+        public static MembershipRef EventLeaderboard(string leaderboardId, string? eventKey = null) =>
+            new() { Kind = MembershipKind.EventLeaderboard, LeaderboardId = leaderboardId, EventKey = eventKey };
 
         public bool SameAs(MembershipRef o)
         {
             if (Kind != o.Kind) return false;
-            if (Kind == MembershipKind.EventBoard) return LeaderboardId == o.LeaderboardId;
-            if (Kind == MembershipKind.SharedBoard) return Key == o.Key && Period == o.Period;
+            if (Kind == MembershipKind.EventLeaderboard) return LeaderboardId == o.LeaderboardId;
+            if (Kind == MembershipKind.Leaderboard) return Key == o.Key && Period == o.Period;
             return false;
         }
     }
@@ -114,12 +114,12 @@ namespace Kraty
     /// <summary>Board-status probe result the tracker asks the client for.
     /// <c>Reason</c> is one of the <see cref="FinalizationReason"/>
     /// constants, or null when the backend didn't supply one.</summary>
-    public sealed class EventBoardStatus
+    public sealed class EventLeaderboardStatus
     {
         public bool Finalized { get; }
         public string? Reason { get; }
         public SelfEntry? Self { get; }
-        public EventBoardStatus(bool finalized, string? reason, SelfEntry? self)
+        public EventLeaderboardStatus(bool finalized, string? reason, SelfEntry? self)
         {
             Finalized = finalized;
             Reason = reason;
@@ -209,7 +209,7 @@ namespace Kraty
     {
         private readonly IMembershipStore _store;
         private readonly Func<Task<string?>> _getActivePlayerId;
-        private readonly Func<string, Task<EventBoardStatus?>> _readEventBoard;
+        private readonly Func<string, Task<EventLeaderboardStatus?>> _readEventLeaderboard;
         private readonly TimeSpan _pruneAfter;
         private readonly List<Action<FinalizationResult>> _listeners = new();
         // Serializes all registry read-modify-write so a live SSE event and a
@@ -219,12 +219,12 @@ namespace Kraty
         public FinalizationTracker(
             IMembershipStore store,
             Func<Task<string?>> getActivePlayerId,
-            Func<string, Task<EventBoardStatus?>> readEventBoard,
+            Func<string, Task<EventLeaderboardStatus?>> readEventLeaderboard,
             TimeSpan? pruneAfter = null)
         {
             _store = store;
             _getActivePlayerId = getActivePlayerId;
-            _readEventBoard = readEventBoard;
+            _readEventLeaderboard = readEventLeaderboard;
             _pruneAfter = pruneAfter ?? TimeSpan.FromDays(7);
         }
 
@@ -280,7 +280,7 @@ namespace Kraty
         }
 
         /// <summary>Live SSE path: a `finalized` event arrived. Routes through the
-        /// same writer as catch-up — persists to the registry AND fires.</summary>
+        /// same writer as catch-up; persists to the registry AND fires.</summary>
         public async Task OnStreamFinalizedAsync(string leaderboardId, IDictionary<string, Newtonsoft.Json.Linq.JToken>? data)
         {
             var playerId = await _getActivePlayerId().ConfigureAwait(false);
@@ -289,7 +289,7 @@ namespace Kraty
             var reason = reasonRaw == FinalizationReason.SessionTerminated || reasonRaw == FinalizationReason.WindowClosed
                 ? reasonRaw
                 : FinalizationReason.Finalized;
-            var @ref = MembershipRef.EventBoard(leaderboardId);
+            var @ref = MembershipRef.EventLeaderboard(leaderboardId);
             await ResolveFinalizedAsync(playerId, @ref, new FinalizationResult
             {
                 Ref = @ref,
@@ -312,8 +312,8 @@ namespace Kraty
 
             foreach (var e in active)
             {
-                if (e.Ref.Kind != MembershipKind.EventBoard || e.Ref.LeaderboardId == null) continue; // shared_board: see docs/05b (deferred)
-                var status = await _readEventBoard(e.Ref.LeaderboardId).ConfigureAwait(false);
+                if (e.Ref.Kind != MembershipKind.EventLeaderboard || e.Ref.LeaderboardId == null) continue; // leaderboard: see docs/05b (deferred)
+                var status = await _readEventLeaderboard(e.Ref.LeaderboardId).ConfigureAwait(false);
                 if (status == null || !status.Finalized) continue;
                 var result = new FinalizationResult
                 {
@@ -331,7 +331,7 @@ namespace Kraty
             return outResults;
         }
 
-        /// <summary>Acknowledge a handled finalization — drop it from the registry.</summary>
+        /// <summary>Acknowledge a handled finalization: drop it from the registry.</summary>
         public async Task DismissAsync(MembershipRef @ref)
         {
             var playerId = await _getActivePlayerId().ConfigureAwait(false);

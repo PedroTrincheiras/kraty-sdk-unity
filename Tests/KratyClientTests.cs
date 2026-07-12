@@ -10,7 +10,7 @@ using Xunit;
 namespace Kraty.Tests
 {
     /// <summary>
-    /// Mirror of the TypeScript SDK's <c>client.test.ts</c> — same 17
+    /// Mirror of the TypeScript SDK's <c>client.test.ts</c>: same 17
     /// scenarios, ported to xUnit + <see cref="FakeHandler"/>. Lock-in
     /// for the patterns that matter on the wire: bearer auth,
     /// idempotency-key auto-stamp + preservation, retry behaviors,
@@ -285,7 +285,7 @@ namespace Kraty.Tests
         [Fact]
         public async Task ProgressToleratesMissingMilestonesFiredField()
         {
-            // Older backend that doesn't include the field yet — the
+            // Older backend that doesn't include the field yet: the
             // C# default for the `List<MilestoneFired>` property keeps
             // the SDK safe to iterate without a null check.
             var handler = new FakeHandler().Push(200,
@@ -321,7 +321,7 @@ namespace Kraty.Tests
         public async Task EventLeaderboardReadWithIncludeSelfLazilyResolvesActivePlayer()
         {
             // Bare `new Kraty(...)` + IncludeSelf:true should lazily
-            // register a player and forward THAT id as externalId — no
+            // register a player and forward THAT id as externalId, with no
             // need for the caller to thread it through.
             var handler = new FakeHandler()
                 .Push(201, "{\"data\":{\"secret\":\"auto-secret\"}}")
@@ -339,10 +339,10 @@ namespace Kraty.Tests
         {
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{" +
-                "\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\",\"scope\":\"global\"," +
+                "\"key\":\"weekly_global\",\"leaderboardId\":\"slb_1\",\"scope\":\"global\"," +
                 "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"segment\":null," +
                 "\"period\":\"2026-06-22T00:00:00Z\"," +
-                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":42,\"rank\":1,\"isSelf\":false}]," +
+                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatar\":null,\"score\":42,\"rank\":1,\"isSelf\":false}]," +
                 "\"self\":null}}");
             using var kraty = new Kraty(BaseOpts(handler));
             var board = await kraty.Leaderboards.ReadAsync("weekly_global", new LeaderboardReadOptions
@@ -361,7 +361,7 @@ namespace Kraty.Tests
         public async Task LeaderboardReadPassesSegmentPeriodIncludeSelf()
         {
             var handler = new FakeHandler().Push(200,
-                "{\"data\":{\"key\":\"weekly_region\",\"sharedLeaderboardId\":\"slb_2\",\"scope\":null," +
+                "{\"data\":{\"key\":\"weekly_region\",\"leaderboardId\":\"slb_2\",\"scope\":null," +
                 "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"segment\":\"eu\"," +
                 "\"period\":\"2026-06-15T00:00:00Z\",\"entries\":[],\"self\":{\"rank\":7,\"score\":100}}}");
             using var kraty = new Kraty(BaseOpts(handler));
@@ -388,7 +388,7 @@ namespace Kraty.Tests
         public async Task LeaderboardListPeriodsDecodes()
         {
             var handler = new FakeHandler().Push(200,
-                "{\"data\":{\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\"," +
+                "{\"data\":{\"key\":\"weekly_global\",\"leaderboardId\":\"slb_1\"," +
                 "\"currentPeriodStartedAt\":\"2026-06-22T00:00:00Z\"," +
                 "\"periods\":[" +
                 "{\"periodStartedAt\":\"2026-06-15T00:00:00Z\",\"periodEndedAt\":\"2026-06-22T00:00:00Z\"}," +
@@ -406,10 +406,10 @@ namespace Kraty.Tests
         {
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{" +
-                "\"key\":\"weekly_region\",\"sharedLeaderboardId\":\"slb_2\",\"scope\":null," +
+                "\"key\":\"weekly_region\",\"leaderboardId\":\"slb_2\",\"scope\":null," +
                 "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"segment\":\"eu\"," +
                 "\"period\":\"2026-06-22T00:00:00Z\"," +
-                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":0,\"rank\":12,\"isSelf\":true}]," +
+                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatar\":null,\"score\":0,\"rank\":12,\"isSelf\":true}]," +
                 "\"self\":{\"rank\":12,\"score\":0},\"joined\":true}}");
             using var kraty = new Kraty(BaseOpts(handler));
             var board = await kraty.Leaderboards.JoinAsync("weekly_region", new LeaderboardJoinOptions
@@ -431,10 +431,10 @@ namespace Kraty.Tests
         {
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{" +
-                "\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\",\"scope\":\"game\"," +
+                "\"key\":\"weekly_global\",\"leaderboardId\":\"slb_1\",\"scope\":\"game\"," +
                 "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"period\":\"2026-06-22T00:00:00Z\"," +
                 "\"segments\":[{\"segment\":\"eu\",\"participated\":true,\"selfRank\":3," +
-                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":42,\"rank\":3,\"isSelf\":true}]}]," +
+                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatar\":null,\"score\":42,\"rank\":3,\"isSelf\":true}]}]," +
                 "\"segmentsTruncated\":false}}");
             using var kraty = new Kraty(BaseOpts(handler));
             var standings = await kraty.Leaderboards.StandingsAsync("weekly_global", new StandingsReadOptions
@@ -466,7 +466,7 @@ namespace Kraty.Tests
         public async Task LeaderboardStandingsDefaultsScopeToAll()
         {
             var handler = new FakeHandler().Push(200,
-                "{\"data\":{\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\",\"scope\":\"game\"," +
+                "{\"data\":{\"key\":\"weekly_global\",\"leaderboardId\":\"slb_1\",\"scope\":\"game\"," +
                 "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"period\":\"2026-06-22T00:00:00Z\"," +
                 "\"segments\":[],\"segmentsTruncated\":false}}");
             using var kraty = new Kraty(BaseOpts(handler));
@@ -479,7 +479,7 @@ namespace Kraty.Tests
         {
             var handler = new FakeHandler()
                 .Push(201, "{\"data\":{\"secret\":\"auto-secret\"}}")
-                .Push(200, "{\"data\":{\"key\":\"weekly_global\",\"sharedLeaderboardId\":\"slb_1\",\"scope\":\"game\"," +
+                .Push(200, "{\"data\":{\"key\":\"weekly_global\",\"leaderboardId\":\"slb_1\",\"scope\":\"game\"," +
                 "\"resetCadence\":\"weekly\",\"scoreAggregation\":\"best\",\"period\":\"2026-06-22T00:00:00Z\"," +
                 "\"segments\":[],\"segmentsTruncated\":false}}");
             using var kraty = new Kraty(BaseOpts(handler));
@@ -495,7 +495,7 @@ namespace Kraty.Tests
         {
             var handler = new FakeHandler().Push(200,
                 "{\"data\":{\"leaderboardId\":\"lb_1\",\"mode\":\"global\",\"finalized\":false," +
-                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatarUrl\":null,\"score\":0,\"rank\":5,\"isSelf\":true}]," +
+                "\"entries\":[{\"participantId\":\"p1\",\"kind\":\"player\",\"name\":\"alice\",\"avatar\":null,\"score\":0,\"rank\":5,\"isSelf\":true}]," +
                 "\"self\":{\"rank\":5,\"score\":0},\"joined\":true}}");
             using var kraty = new Kraty(BaseOpts(handler));
             var board = await kraty.EventLeaderboards.JoinAsync("lb_1", new EventLeaderboardJoinOptions

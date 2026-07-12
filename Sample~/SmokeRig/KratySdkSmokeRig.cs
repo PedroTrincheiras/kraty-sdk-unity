@@ -23,7 +23,7 @@ namespace Kraty.Sample.SmokeRig
     /// </para>
     ///
     /// <para>
-    /// The panel is IMGUI on purpose — no scene, no prefab, no UI Toolkit
+    /// The panel is IMGUI on purpose: no scene, no prefab, no UI Toolkit
     /// dependency. The whole thing is one file.
     /// </para>
     /// </summary>
@@ -35,13 +35,13 @@ namespace Kraty.Sample.SmokeRig
         [Tooltip("Backend base URL. Default: staging.")]
         [SerializeField] private string baseUrl = "https://api.staging.kraty.io";
 
-        [Header("Optional — what to exercise")]
+        [Header("Optional: what to exercise")]
         [Tooltip("Event key to start / progress against. Leave blank to auto-pick the first event from ListForPlayerAsync.")]
         [SerializeField] private string eventKey = "";
-        [Tooltip("Shared leaderboard key to read (e.g. weekly_global).")]
-        [SerializeField] private string sharedLeaderboardKey = "";
-        [Tooltip("Optional segment for segmented shared boards.")]
-        [SerializeField] private string sharedLeaderboardSegment = "";
+        [Tooltip("Leaderboard key to read (e.g. weekly_global).")]
+        [SerializeField] private string leaderboardKey = "";
+        [Tooltip("Optional segment for segmented leaderboards.")]
+        [SerializeField] private string leaderboardSegment = "";
         [Tooltip("Optional lobby id to exercise the lobbies endpoint against (paste from dashboard or your own backend).")]
         [SerializeField] private string lobbyId = "";
 
@@ -57,7 +57,7 @@ namespace Kraty.Sample.SmokeRig
         private void OnEnable()
         {
             // Capture the player-loop SynchronizationContext implicitly by
-            // constructing the Kraty facade on Start — every async call below
+            // constructing the Kraty facade on Start, so every async call below
             // is `await`-ed without ConfigureAwait, so continuations land back
             // here. PlayerPrefs reads/writes happen on the main thread.
             _kraty = new Kraty.Kraty(new KratyClientOptions
@@ -65,7 +65,7 @@ namespace Kraty.Sample.SmokeRig
                 ApiKey = string.IsNullOrEmpty(apiKey) ? "(missing-key)" : apiKey,
                 BaseUrl = baseUrl,
             });
-            AppendLog($"rig armed — base={baseUrl}, key={(string.IsNullOrEmpty(apiKey) ? "MISSING" : Mask(apiKey))}");
+            AppendLog($"rig armed: base={baseUrl}, key={(string.IsNullOrEmpty(apiKey) ? "MISSING" : Mask(apiKey))}");
         }
 
         private void OnDisable()
@@ -79,10 +79,10 @@ namespace Kraty.Sample.SmokeRig
             const int W = 480;
             GUILayout.BeginArea(new Rect(10, 10, W, Screen.height - 20), GUI.skin.box);
 
-            GUILayout.Label("<b>Kraty SDK — Smoke Rig</b>", new GUIStyle(GUI.skin.label) { richText = true, fontSize = 16 });
+            GUILayout.Label("<b>Kraty SDK: Smoke Rig</b>", new GUIStyle(GUI.skin.label) { richText = true, fontSize = 16 });
             GUILayout.Space(4);
             GUILayout.Label($"player: {_activePlayerId}");
-            GUILayout.Label($"attempt: {_lastAttemptId ?? "—"}    leaderboard: {_lastLeaderboardId ?? "—"}    lobby: {(string.IsNullOrEmpty(lobbyId) ? "—" : lobbyId)}");
+            GUILayout.Label($"attempt: {_lastAttemptId ?? "n/a"}    leaderboard: {_lastLeaderboardId ?? "n/a"}    lobby: {(string.IsNullOrEmpty(lobbyId) ? "n/a" : lobbyId)}");
             GUILayout.Space(6);
 
             GUI.enabled = !_busy;
@@ -172,7 +172,7 @@ namespace Kraty.Sample.SmokeRig
         {
             var events = await _kraty.Events.ListForPlayerAsync(ct: ct);
             AppendLog($"events: {events.Count} active");
-            foreach (var e in events) AppendLog($"  • {e.EventKey}  (type={e.Type}, mode={e.LeaderboardMode ?? "—"})");
+            foreach (var e in events) AppendLog($"  • {e.EventKey}  (type={e.Type}, mode={e.LeaderboardMode ?? "n/a"})");
             if (string.IsNullOrEmpty(eventKey) && events.Count > 0)
             {
                 eventKey = events[0].EventKey;
@@ -211,22 +211,22 @@ namespace Kraty.Sample.SmokeRig
 
         private async Task ReadLeaderboard(CancellationToken ct)
         {
-            if (string.IsNullOrEmpty(sharedLeaderboardKey)) throw new InvalidOperationException("set sharedLeaderboardKey");
-            var board = await _kraty.Leaderboards.ReadAsync(sharedLeaderboardKey,
+            if (string.IsNullOrEmpty(leaderboardKey)) throw new InvalidOperationException("set leaderboardKey");
+            var board = await _kraty.Leaderboards.ReadAsync(leaderboardKey,
                 new LeaderboardReadOptions
                 {
                     Limit = 10,
                     IncludeSelf = true,
-                    Segment = string.IsNullOrEmpty(sharedLeaderboardSegment) ? null : sharedLeaderboardSegment,
+                    Segment = string.IsNullOrEmpty(leaderboardSegment) ? null : leaderboardSegment,
                 }, ct);
-            AppendLog($"leaderboard {board.Key}: {board.Entries.Count} rows (period={board.Period}, segment={board.Segment ?? "—"})");
+            AppendLog($"leaderboard {board.Key}: {board.Entries.Count} rows (period={board.Period}, segment={board.Segment ?? "n/a"})");
             if (board.Self != null) AppendLog($"  you: #{board.Self.Rank} score={board.Self.Score}");
         }
 
         private async Task ListPeriods(CancellationToken ct)
         {
-            if (string.IsNullOrEmpty(sharedLeaderboardKey)) throw new InvalidOperationException("set sharedLeaderboardKey");
-            var resp = await _kraty.Leaderboards.ListPeriodsAsync(sharedLeaderboardKey, ct: ct);
+            if (string.IsNullOrEmpty(leaderboardKey)) throw new InvalidOperationException("set leaderboardKey");
+            var resp = await _kraty.Leaderboards.ListPeriodsAsync(leaderboardKey, ct: ct);
             AppendLog($"periods for {resp.Key}: {resp.Periods.Count} (current started {resp.CurrentPeriodStartedAt})");
             foreach (var p in resp.Periods) AppendLog($"  • {p.PeriodStartedAt} → {p.PeriodEndedAt}");
         }
@@ -243,7 +243,7 @@ namespace Kraty.Sample.SmokeRig
             if (string.IsNullOrEmpty(_lastLeaderboardId)) throw new InvalidOperationException("call Start first to get a leaderboardId");
             _liveSub = _kraty.EventLeaderboards.Subscribe(_lastLeaderboardId, ev =>
             {
-                // Callbacks fire on the background thread — keep the OnGUI
+                // Callbacks fire on the background thread, so keep the OnGUI
                 // side lock-free by deferring to the next OnGUI tick via the log.
                 AppendLogThreadSafe($"<color=#9fc9ff>live:</color> {ev.Kind}");
             }, new SubscribeOptions
@@ -294,7 +294,7 @@ namespace Kraty.Sample.SmokeRig
 
         private async Task RunAll(CancellationToken ct)
         {
-            // Order matters — later steps depend on the IDs earlier steps populate.
+            // Order matters: later steps depend on the IDs earlier steps populate.
             await EnsureIdentity(ct);
             await ListEvents(ct);
             if (!string.IsNullOrEmpty(eventKey))
@@ -303,7 +303,7 @@ namespace Kraty.Sample.SmokeRig
                 await ProgressEvent(10, ct);
                 await ReadPerEventLeaderboard(ct);
             }
-            if (!string.IsNullOrEmpty(sharedLeaderboardKey))
+            if (!string.IsNullOrEmpty(leaderboardKey))
             {
                 await ReadLeaderboard(ct);
                 await ListPeriods(ct);
@@ -312,7 +312,7 @@ namespace Kraty.Sample.SmokeRig
             await CollectAllGrants(ct);
             await ListInventory(ct);
             await ListWallet(ct);
-            AppendLog("<color=#7fff7f><b>Run ALL — finished</b></color>");
+            AppendLog("<color=#7fff7f><b>Run ALL: finished</b></color>");
         }
 
         // ── plumbing ─────────────────────────────────────────────────────

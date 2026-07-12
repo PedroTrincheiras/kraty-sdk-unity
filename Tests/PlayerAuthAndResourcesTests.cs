@@ -119,7 +119,7 @@ namespace Kraty.Tests
             var store = new InMemorySecretStore();
             await store.WriteAsync("alice", "cached-secret");
             using var kraty = await Kraty.ConnectAsPlayerAsync(BaseOpts(handler), "alice", store);
-            Assert.Empty(handler.Calls); // no HTTP — used the cached secret
+            Assert.Empty(handler.Calls); // no HTTP; used the cached secret
             // Confirm the secret was wired through.
             handler.Push(200, "{\"data\":[]}");
             await kraty.Grants.ListPendingAsync(@as: "alice");
@@ -171,7 +171,7 @@ namespace Kraty.Tests
         public async Task ReadStoredIdentityReturnsNullWhenNoActiveMarker()
         {
             var store = new InMemorySecretStore();
-            // Secret is present but no active marker — the helper must
+            // Secret is present but no active marker, so the helper must
             // still return null so the game shows onboarding instead of
             // a half-broken auto-resume.
             await store.WriteAsync("alice", "secret-1");
@@ -197,7 +197,7 @@ namespace Kraty.Tests
             Assert.NotNull(await Kraty.ReadStoredIdentityAsync(store));
             await Kraty.ClearStoredIdentityAsync(store);
             Assert.Null(await Kraty.ReadStoredIdentityAsync(store));
-            // Secret survives — if the user signs back in we don't
+            // Secret survives, so if the user signs back in we don't
             // need to re-register.
             Assert.Equal("sec", await store.ReadAsync("alice"));
         }
@@ -444,7 +444,7 @@ namespace Kraty.Tests
             Assert.Matches(@"/sdk/v1/players/kp_[A-Za-z0-9_-]+/pending-grants$", handler.Calls[1].Url);
             Assert.NotNull(kraty.ActiveExternalPlayerId);
             Assert.StartsWith("kp_", kraty.ActiveExternalPlayerId);
-            // Second bare call reuses the freshly minted id — no extra
+            // Second bare call reuses the freshly minted id, so no extra
             // register fires.
             handler.Push(200, "{\"data\":[]}");
             await kraty.Grants.ListPendingAsync();
@@ -479,7 +479,7 @@ namespace Kraty.Tests
         [Fact]
         public async Task EnsureIdentityAsyncDedupesConcurrentFirstTouch()
         {
-            // Two simultaneous calls share one inflight register — no
+            // Two simultaneous calls share one inflight register, so no
             // double-POST against /register.
             var handler = new FakeHandler().Push(201, "{\"data\":{\"secret\":\"auto-secret\"}}");
             using var kraty = new Kraty(BaseOpts(handler));
@@ -551,7 +551,7 @@ namespace Kraty.Tests
             var identity = await kraty.EnsureIdentityAsync();
             Assert.Equal("alice", identity.ExternalPlayerId);
             Assert.Equal("cached-secret", identity.Secret);
-            // No HTTP fired — the store already had everything.
+            // No HTTP fired; the store already had everything.
             Assert.Empty(handler.Calls);
         }
     }

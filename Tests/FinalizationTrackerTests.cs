@@ -8,15 +8,15 @@ using Xunit;
 namespace Kraty.Tests
 {
     /// <summary>
-    /// Mirror of the TypeScript SDK's <c>finalization.test.ts</c> — the
-    /// finalization catch-up (docs/05b): the single-writer invariant, the
+    /// Mirror of the TypeScript SDK's <c>finalization.test.ts</c>, covering
+    /// the finalization catch-up (docs/05b): the single-writer invariant, the
     /// SSE + catch-up dedupe, the persisted session-vs-window reason, and
     /// dismiss/clearReported.
     /// </summary>
     public sealed class FinalizationTrackerTests
     {
         private static MembershipRef Ref =>
-            MembershipRef.EventBoard("lb-1", "daily");
+            MembershipRef.EventLeaderboard("lb-1", "daily");
 
         private static (FinalizationTracker tracker, List<FinalizationResult> fired) Make(
             bool finalized = false,
@@ -24,13 +24,13 @@ namespace Kraty.Tests
             SelfEntry? self = null)
         {
             var store = new InMemoryMembershipStore();
-            Task<EventBoardStatus?> ReadBoard(string _) =>
-                Task.FromResult<EventBoardStatus?>(
-                    new EventBoardStatus(finalized, reason, self ?? new SelfEntry(3, 42)));
+            Task<EventLeaderboardStatus?> ReadBoard(string _) =>
+                Task.FromResult<EventLeaderboardStatus?>(
+                    new EventLeaderboardStatus(finalized, reason, self ?? new SelfEntry(3, 42)));
             var tracker = new FinalizationTracker(
                 store,
                 getActivePlayerId: () => Task.FromResult<string?>("p1"),
-                readEventBoard: ReadBoard);
+                readEventLeaderboard: ReadBoard);
             var fired = new List<FinalizationResult>();
             tracker.OnFinalized(r => fired.Add(r));
             return (tracker, fired);
@@ -42,7 +42,7 @@ namespace Kraty.Tests
             var store = new InMemoryMembershipStore();
             var tracker = new FinalizationTracker(
                 store, () => Task.FromResult<string?>("p1"),
-                _ => Task.FromResult<EventBoardStatus?>(null));
+                _ => Task.FromResult<EventLeaderboardStatus?>(null));
             await tracker.TrackAsync(Ref);
             await tracker.TrackAsync(Ref);
             var entries = await store.LoadAsync("p1");
@@ -129,7 +129,7 @@ namespace Kraty.Tests
         {
             var (tracker, _) = Make(finalized: true);
             await tracker.TrackAsync(Ref);
-            await tracker.TrackAsync(MembershipRef.EventBoard("lb-2"));
+            await tracker.TrackAsync(MembershipRef.EventLeaderboard("lb-2"));
             await tracker.OnStreamFinalizedAsync("lb-1", new Dictionary<string, JToken>
             {
                 ["reason"] = FinalizationReason.WindowClosed,

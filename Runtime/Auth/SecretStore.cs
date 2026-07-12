@@ -9,7 +9,7 @@ namespace Kraty
     /// Per-player secret persistence contract for
     /// <see cref="Kraty.ConnectAsPlayerAsync"/>. The SDK ships as
     /// netstandard2.1 so it can't depend on a platform-specific
-    /// storage backend — consumers implement this against whatever
+    /// storage backend, so consumers implement this against whatever
     /// they ship:
     ///
     /// <list type="bullet">
@@ -30,14 +30,14 @@ namespace Kraty
     /// <list type="bullet">
     /// <item><description><c>ReadAsync</c> returns <c>null</c> (not throw)
     /// when no secret is stored. The SDK treats <c>null</c> and the
-    /// empty string identically — both trigger a fresh
+    /// empty string identically; both trigger a fresh
     /// <c>register</c>.</description></item>
     /// <item><description><c>WriteAsync</c> must be durable across app
     /// launches. The SDK calls it exactly once per successful
-    /// register. Overwriting is fine — that's the rotation path.</description></item>
+    /// register. Overwriting is fine; that's the rotation path.</description></item>
     /// <item><description><c>RemoveAsync</c> is called by your own logout
     /// flow; the SDK never calls it internally.</description></item>
-    /// <item><description>Operations are awaited on the boot path —
+    /// <item><description>Operations are awaited on the boot path, so
     /// implementations should be reasonably fast (under 50ms). Don't
     /// network-call from here.</description></item>
     /// <item><description>Key namespace is your problem: include
@@ -93,7 +93,7 @@ namespace Kraty
     }
 
     /// <summary>
-    /// Result of <see cref="Kraty.ReadStoredIdentityAsync"/> — the
+    /// Result of <see cref="Kraty.ReadStoredIdentityAsync"/>: the
     /// last-active player and the secret needed to reconnect.
     /// </summary>
     public sealed class StoredIdentity
@@ -181,7 +181,7 @@ namespace Kraty
     /// Unity-only <see cref="ISecretStore"/> backed by
     /// <c>UnityEngine.PlayerPrefs</c>. Reasonable default for prototypes;
     /// for shipped games on iOS / Android consider a Keychain /
-    /// EncryptedSharedPreferences plugin instead — <c>PlayerPrefs</c>
+    /// EncryptedSharedPreferences plugin instead; <c>PlayerPrefs</c>
     /// is unencrypted on disk and recoverable by anyone with physical
     /// device access.
     /// </summary>

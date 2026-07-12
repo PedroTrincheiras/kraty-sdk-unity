@@ -24,7 +24,7 @@ namespace Kraty
         /// Per-player secret. When set, the client attaches
         /// <c>X-Player-Secret: &lt;value&gt;</c> to every request. Required
         /// by all player-scoped routes (events.start, events.progress,
-        /// grants.*, inventory.*, wallet.*) — without it those return
+        /// grants.*, inventory.*, wallet.*); without it those return
         /// 401 <c>player_secret_invalid</c>.
         ///
         /// <para>
@@ -38,7 +38,7 @@ namespace Kraty
         /// The <c>externalPlayerId</c> this SDK instance is
         /// authenticated as. When set, player-scoped methods default
         /// to this id and skip auto-register on first call. Leave
-        /// unset for self-serve signups — the SDK then auto-generates
+        /// unset for self-serve signups; the SDK then auto-generates
         /// a UUID on first use and persists it in
         /// <see cref="SecretStore"/>.
         /// </summary>
@@ -53,7 +53,7 @@ namespace Kraty
         ///   <item><description>Plain .NET (CLI, tests) → <see cref="InMemorySecretStore"/>. Wire your own (DPAPI, libsecret, file-on-disk) if you need durability.</description></item>
         /// </list>
         ///
-        /// Most game clients never touch this — the default does the
+        /// Most game clients never touch this; the default does the
         /// right thing on every platform the SDK ships on.
         /// </summary>
         public ISecretStore? SecretStore { get; set; }
@@ -77,7 +77,7 @@ namespace Kraty
         public RetryConfig Retry { get; set; } = new();
 
         /// <summary>
-        /// Optional HttpMessageHandler — tests inject mocks; production
+        /// Optional HttpMessageHandler. Tests inject mocks; production
         /// can layer DelegatingHandler for logging / observability.
         /// </summary>
         public HttpMessageHandler? HttpMessageHandler { get; set; }
@@ -171,7 +171,7 @@ namespace Kraty
     public sealed class KratyClient : IDisposable
     {
         private const string SdkName = "app.kraty.sdk";
-        private const string SdkVersion = "0.0.1";
+        private const string SdkVersion = "0.9.0";
         private const string SdkUserAgent = SdkName + "/" + SdkVersion;
 
         private static readonly JsonSerializerSettings JsonOptions = new()
@@ -197,7 +197,7 @@ namespace Kraty
         private readonly Random _jitterRng = new();
         private readonly string _baseUrl;
         private readonly string _authHeader;
-        // Identity is mutable on purpose — the lazy EnsureIdentityAsync()
+        // Identity is mutable on purpose: the lazy EnsureIdentityAsync()
         // call may register or restore a player after construction and
         // mutate these in place so subsequent calls skip the round-trip.
         private string? _playerSecret;
@@ -236,13 +236,13 @@ namespace Kraty
                 opts.MembershipStore ?? DefaultMembershipStore(),
                 // Never force-register during catch-up: only the current active player.
                 getActivePlayerId: () => Task.FromResult(_activeExternalPlayerId),
-                readEventBoard: ReadEventBoardStatusAsync);
+                readEventLeaderboard: ReadEventLeaderboardStatusAsync);
         }
 
         // Probe an event board's finalized status + reason + the caller's self
         // entry for the finalization catch-up. Returns null (treated as
         // still-active) when there's no active player or the read fails.
-        private async Task<EventBoardStatus?> ReadEventBoardStatusAsync(string leaderboardId)
+        private async Task<EventLeaderboardStatus?> ReadEventLeaderboardStatusAsync(string leaderboardId)
         {
             var ext = _activeExternalPlayerId;
             if (string.IsNullOrEmpty(ext)) return null;
@@ -256,7 +256,7 @@ namespace Kraty
                 var lb = env.Data;
                 if (lb == null) return null;
                 var self = lb.Self != null ? new SelfEntry(lb.Self.Rank, lb.Self.Score) : null;
-                return new EventBoardStatus(lb.Finalized, lb.FinalizedReason, self);
+                return new EventLeaderboardStatus(lb.Finalized, lb.FinalizedReason, self);
             }
             catch
             {
@@ -298,15 +298,15 @@ namespace Kraty
         /// <summary>
         /// Resolve the active player, registering a fresh one if none
         /// exists. Called transparently by every player-scoped resource
-        /// method — game code rarely needs to invoke this directly.
+        /// method. Game code rarely needs to invoke this directly.
         ///
         /// <para>
         /// Resolution order:
         /// </para>
         /// <list type="number">
-        ///   <item><description>Constructor <c>ActiveExternalPlayerId</c> + <c>PlayerSecret</c> if both supplied — explicit, no I/O.</description></item>
-        ///   <item><description>Persisted active id in the SecretStore + matching persisted secret — restore.</description></item>
-        ///   <item><description>Fresh signup — generate a <c>kp_&lt;guid&gt;</c> id, POST <c>/sdk/v1/players/:id/register</c>, persist + install.</description></item>
+        ///   <item><description>Constructor <c>ActiveExternalPlayerId</c> + <c>PlayerSecret</c> if both supplied (explicit, no I/O).</description></item>
+        ///   <item><description>Persisted active id in the SecretStore + matching persisted secret (restore).</description></item>
+        ///   <item><description>Fresh signup: generate a <c>kp_&lt;guid&gt;</c> id, POST <c>/sdk/v1/players/:id/register</c>, persist + install.</description></item>
         /// </list>
         ///
         /// <para>
@@ -328,7 +328,7 @@ namespace Kraty
                 }
                 // An inflight resolve dedupes concurrent first-touch.
                 // A completed cached task is stale (e.g. after LogoutAsync
-                // wiped state) — re-run the resolver.
+                // wiped state), so re-run the resolver.
                 if (_identityInit != null && !_identityInit.IsCompleted) return _identityInit;
                 _identityInit = ResolveIdentityAsync(cancellationToken);
                 return _identityInit;
@@ -653,7 +653,7 @@ namespace Kraty
 
         // Self-serve externalPlayerId for fresh signups. Prefixed so a
         // glance at the audit log distinguishes SDK-minted ids from
-        // your own. UUID v4 under the hood — collision resistance is
+        // your own. UUID v4 under the hood, so collision resistance is
         // good enough for the lifetime of a single device.
         private static string GenerateExternalPlayerId()
         {
@@ -661,7 +661,7 @@ namespace Kraty
         }
 
         // ── Finalization catch-up (docs/05b) ─────────────────────────
-        // OnFinalized fires when a board the player is in ends — live over
+        // OnFinalized fires when a board the player is in ends: live over
         // SSE while subscribed, OR via CheckFinalizationsAsync for boards
         // that finalized while they were away. Both paths deliver exactly
         // once. DismissAsync/ClearReportedAsync acknowledge handled results.
@@ -673,7 +673,7 @@ namespace Kraty
         /// Call on app foreground / reconnect.</summary>
         public Task<List<FinalizationResult>> CheckFinalizationsAsync() => _finalization.CheckFinalizationsAsync();
 
-        /// <summary>Acknowledge a handled finalization — drop it from the registry.</summary>
+        /// <summary>Acknowledge a handled finalization; drop it from the registry.</summary>
         public Task DismissAsync(MembershipRef @ref) => _finalization.DismissAsync(@ref);
 
         /// <summary>Bulk-drop every already-reported membership. Returns the count.</summary>
@@ -684,13 +684,13 @@ namespace Kraty
         internal Task TrackMembershipAsync(MembershipRef @ref) => _finalization.TrackAsync(@ref);
 
         // Called by the live leaderboard subscription when a `finalized` SSE
-        // event arrives — routes through the same single writer as catch-up so
+        // event arrives; routes through the same single writer as catch-up so
         // the registry is updated (not just the callback fired). See docs/05b.
         internal Task RouteFinalizedAsync(string leaderboardId, IDictionary<string, JToken>? data) =>
             _finalization.OnStreamFinalizedAsync(leaderboardId, data);
 
         // Picks PlayerPrefsSecretStore on Unity, in-memory elsewhere.
-        // Most game clients never need to override — the default does
+        // Most game clients never need to override; the default does
         // the right thing per platform.
         private static ISecretStore DefaultSecretStore()
         {

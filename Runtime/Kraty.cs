@@ -17,7 +17,7 @@ namespace Kraty
     /// using var kraty = new Kraty(new KratyClientOptions {
     ///     ApiKey = "<your-client-sdk-key>",
     /// });
-    /// // No id plumbing — the SDK lazily registers a player on the
+    /// // No id plumbing; the SDK lazily registers a player on the
     /// // first player-scoped call and persists it via PlayerPrefs.
     /// var events = await kraty.Events.ListForPlayerAsync();
     /// ]]></code>
@@ -63,7 +63,7 @@ namespace Kraty
         /// <summary>
         /// Resolve the active player identity, registering a fresh one
         /// if no persisted identity exists. Most games don't need to
-        /// call this — any player-scoped method triggers it
+        /// call this, since any player-scoped method triggers it
         /// transparently. Reach for it when you want the id available
         /// before the first request.
         /// </summary>
@@ -80,7 +80,7 @@ namespace Kraty
         /// <summary>
         /// Install an explicit identity on this SDK and persist it.
         /// Use when your own auth gave you back a Kraty
-        /// <c>externalPlayerId</c> + <c>secret</c> — e.g. on a new
+        /// <c>externalPlayerId</c> + <c>secret</c>, e.g. on a new
         /// device after a server-side device-link flow.
         /// </summary>
         public Task SignInAsync(string externalPlayerId, string secret, CancellationToken ct = default)
@@ -88,7 +88,7 @@ namespace Kraty
 
         /// <summary>
         /// Finalization catch-up (docs/05b). <see cref="OnFinalized"/> fires
-        /// when a board the player is in ends — live over SSE while subscribed,
+        /// when a board the player is in ends: live over SSE while subscribed,
         /// OR via <see cref="CheckFinalizationsAsync"/> for boards that
         /// finalized while they were away (call it on app foreground /
         /// reconnect). Both paths deliver exactly once.
@@ -100,7 +100,7 @@ namespace Kraty
         /// <summary>Poll tracked boards; report + return any that finalized while away.</summary>
         public Task<List<FinalizationResult>> CheckFinalizationsAsync() => Client.CheckFinalizationsAsync();
 
-        /// <summary>Acknowledge a handled finalization — drop it from the registry.</summary>
+        /// <summary>Acknowledge a handled finalization, dropping it from the registry.</summary>
         public Task DismissAsync(MembershipRef @ref) => Client.DismissAsync(@ref);
 
         /// <summary>Bulk-drop every already-reported membership. Returns the count.</summary>
@@ -111,13 +111,13 @@ namespace Kraty
         /// call. Reads the stored secret from
         /// <paramref name="secretStore"/>, registers if absent, retries
         /// with <c>force: true</c> on a <c>player_already_registered</c>
-        /// 409 (dev/test envs only — production keys reject
+        /// 409 (dev/test envs only, since production keys reject
         /// <c>force</c> and the 409 surfaces to the caller), persists
         /// the secret, and returns a <see cref="Kraty"/> wired with the
         /// secret on every subsequent request.
         ///
         /// <para>
-        /// Most apps don't need this — <c>new Kraty(new KratyClientOptions { ApiKey = ... })</c>
+        /// Most apps don't need this; <c>new Kraty(new KratyClientOptions { ApiKey = ... })</c>
         /// is enough and lazily registers on the first call. Use this
         /// when you want the register I/O to happen at a specific
         /// moment (e.g. behind a loading screen).

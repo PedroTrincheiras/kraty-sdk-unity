@@ -12,21 +12,21 @@ namespace Kraty
 {
     /// <summary>
     /// One event emitted by the leaderboard SSE stream.
-    /// <see cref="Kind"/> is the SSE <c>event:</c> line — typically:
+    /// <see cref="Kind"/> is the SSE <c>event:</c> line, typically:
     /// <list type="bullet">
-    /// <item><description><c>ready</c> — handshake, sent once after the
+    /// <item><description><c>ready</c>: handshake, sent once after the
     /// subscription is wired. Safe to start posting progress as soon
     /// as this lands without missing the resulting update.</description></item>
-    /// <item><description><c>score_update</c> — a participant's score / rank
+    /// <item><description><c>score_update</c>: a participant's score / rank
     /// changed; payload carries the new <c>rank</c> + <c>score</c> for
     /// the affected entry.</description></item>
-    /// <item><description><c>finalized</c> — the board ended (a session/lobby
+    /// <item><description><c>finalized</c>: the board ended (a session/lobby
     /// terminated, or the event window closed). <see cref="Data"/> carries
     /// <c>reason</c> (<c>session_terminated</c> | <c>window_closed</c>) and
-    /// <c>standings</c> (a list of <c>{participantId, rank, score, name, kind}</c>) —
-    /// find the caller by <c>participantId</c> to show their placement, then
+    /// <c>standings</c> (a list of <c>{participantId, rank, score, name, kind}</c>).
+    /// Find the caller by <c>participantId</c> to show their placement, then
     /// stop expecting <c>score_update</c>s.</description></item>
-    /// <item><description><c>closed</c> — server is finalizing or closing.
+    /// <item><description><c>closed</c>: server is finalizing or closing.
     /// After this the stream completes and <see cref="LeaderboardStream.CancelAsync"/>
     /// is a no-op.</description></item>
     /// </list>
@@ -47,7 +47,7 @@ namespace Kraty
     /// <summary>
     /// Handle to an active SSE subscription. Hook <see cref="OnEvent"/>
     /// / <see cref="OnError"/> before the connection is opened (or
-    /// immediately after — events buffer until the consumer's
+    /// immediately after, since events buffer until the consumer's
     /// SynchronizationContext drains), call <see cref="CancelAsync"/>
     /// to stop.
     ///
@@ -60,7 +60,7 @@ namespace Kraty
     /// </code>
     ///
     /// <para>
-    /// The SDK does NOT auto-reconnect on transport drop — surface
+    /// The SDK does NOT auto-reconnect on transport drop; surface
     /// errors via <see cref="OnError"/> and re-invoke
     /// <see cref="EventLeaderboardsClient.LiveAsync"/> after a backoff
     /// if you want resumption.
@@ -80,13 +80,13 @@ namespace Kraty
         {
             _response = response;
             _cts = cts;
-            // Start the read loop on the threadpool — it runs until the
+            // Start the read loop on the threadpool; it runs until the
             // server closes the stream OR the consumer cancels.
             _readLoop = Task.Run(() => startReadLoop(this));
         }
 
         /// <summary>
-        /// Cancels the subscription + closes the HTTP socket. Idempotent —
+        /// Cancels the subscription + closes the HTTP socket. Idempotent:
         /// safe to call after the server emits <c>closed</c> or after
         /// <see cref="Dispose"/>.
         /// </summary>
@@ -127,7 +127,7 @@ namespace Kraty
     /// with <c>ResponseHeadersRead</c> + a manual line-by-line parser.
     /// <c>\n\n</c> separates events; <c>event:</c> / <c>data:</c> are
     /// the keys we read. Comment lines starting with <c>:</c> are
-    /// heartbeats — ignored.
+    /// heartbeats, ignored.
     /// </para>
     /// </summary>
     internal static class LeaderboardStreamFactory
@@ -181,7 +181,7 @@ namespace Kraty
                         }
                     }
                 }
-                catch { /* not JSON — fall through */ }
+                catch { /* not JSON, fall through */ }
                 throw new KratyApiError(
                     (int)response.StatusCode,
                     code ?? $"http_{(int)response.StatusCode}",
@@ -233,7 +233,7 @@ namespace Kraty
                         currentEvent = "message";
                     }
 
-                    // ReadLineAsync doesn't take a CT on netstandard2.1 —
+                    // ReadLineAsync doesn't take a CT on netstandard2.1, so
                     // poll the reader and bail when the linked token
                     // fires by disposing the stream out from under it.
                     cts.Token.Register(() =>
@@ -255,7 +255,7 @@ namespace Kraty
                         }
                         if (line == null)
                         {
-                            // Server closed the stream — flush any
+                            // Server closed the stream; flush any
                             // pending event, then exit cleanly.
                             Emit();
                             break;
@@ -268,7 +268,7 @@ namespace Kraty
                         }
                         if (line[0] == ':')
                         {
-                            // Comment / heartbeat — ignore.
+                            // Comment / heartbeat: ignore.
                             continue;
                         }
                         var colonIdx = line.IndexOf(':');
@@ -287,8 +287,8 @@ namespace Kraty
                                 if (dataBuffer.Length > 0) dataBuffer.Append('\n');
                                 dataBuffer.Append(value);
                                 break;
-                            // SSE also defines `id` and `retry` — we
-                            // don't use them.
+                            // SSE also defines `id` and `retry`, which we
+                            // don't use.
                             default:
                                 break;
                         }
