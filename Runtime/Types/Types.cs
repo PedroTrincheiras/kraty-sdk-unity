@@ -314,6 +314,10 @@ namespace Kraty
         [JsonProperty("kind")] public string Kind { get; set; } = string.Empty;
         [JsonProperty("name")] public string? Name { get; set; }
         [JsonProperty("avatar")] public string? Avatar { get; set; }
+
+        /// <summary>ISO-3166 alpha-2 country of the player (e.g. "PT") for a flag;
+        /// null for bots and when the server couldn't resolve it.</summary>
+        [JsonProperty("country")] public string? Country { get; set; }
         [JsonProperty("score")] public double Score { get; set; }
         [JsonProperty("rank")] public int Rank { get; set; }
         /// <summary>
