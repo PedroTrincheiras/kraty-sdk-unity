@@ -971,6 +971,41 @@ namespace Kraty
             ).ConfigureAwait(false);
             return env.Data ?? new PlayerRegistration();
         }
+
+        /// <summary>
+        /// PUT <c>/sdk/v1/players/:externalId/identity</c>: set the active
+        /// player's OWN display name (+ optional <paramref name="avatar"/>) —
+        /// e.g. from a "choose your username" screen. Overrides the identity
+        /// auto-generated from the game's pool and surfaces on leaderboards.
+        ///
+        /// <para>
+        /// Authorized by the player's own secret, so a client can only ever
+        /// change ITS OWN identity. This trusts the client; moderate names from
+        /// your backend (server SDK <c>players.setIdentity</c>) if you need to.
+        /// Pass <paramref name="avatar"/>=null to clear it; <paramref name="as"/>
+        /// targets another player (server-side tooling only). Throws
+        /// <see cref="KratyApiError"/> <c>validation_failed</c> (400) on an
+        /// empty or over-long name.
+        /// </para>
+        /// </summary>
+        public async Task<PlayerIdentity> SetIdentityAsync(
+            string name,
+            string? avatar = null,
+            string? @as = null,
+            CancellationToken ct = default
+        )
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var body = new Dictionary<string, object?> { ["name"] = name };
+            if (avatar != null) body["avatar"] = avatar;
+            var env = await _client.RequestAsync<DataEnvelope<SetIdentityResult>>(
+                HttpMethod.Put,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/identity",
+                body: body,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.SyntheticIdentity ?? new PlayerIdentity { Name = name, Avatar = avatar };
+        }
     }
 
     /// <summary>

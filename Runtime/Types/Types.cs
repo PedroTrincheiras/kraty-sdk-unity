@@ -709,6 +709,24 @@ namespace Kraty
     }
 
     /// <summary>
+    /// A player's display identity (name + optional avatar) — the
+    /// privacy-preserving alias surfaced on leaderboards. Returned by
+    /// <see cref="PlayersClient.SetIdentityAsync"/>.
+    /// </summary>
+    public sealed class PlayerIdentity
+    {
+        [JsonProperty("name")] public string Name { get; set; } = string.Empty;
+        [JsonProperty("avatar")] public string? Avatar { get; set; }
+    }
+
+    /// <summary>Response of <c>PUT /sdk/v1/players/:externalId/identity</c>.</summary>
+    public sealed class SetIdentityResult
+    {
+        [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
+        [JsonProperty("syntheticIdentity")] public PlayerIdentity? SyntheticIdentity { get; set; }
+    }
+
+    /// <summary>
     /// One row in the player's platform-managed inventory. Returned by
     /// <c>GET /sdk/v1/players/:externalId/inventory</c>. The item's
     /// display name and other catalog metadata live on the <c>items</c>

@@ -163,6 +163,7 @@ Task<DebitWalletResult>         DebitAsync(string economyKey, DebitWalletInput i
 
 ```csharp
 Task<PlayerRegistration> RegisterAsync(string externalPlayerId, bool force = false, CancellationToken ct = default)
+Task<PlayerIdentity> SetIdentityAsync(string name, string? avatar = null, string? @as = null, CancellationToken ct = default)
 ```
 
 ## `kraty.Catalog`: `CatalogClient`
