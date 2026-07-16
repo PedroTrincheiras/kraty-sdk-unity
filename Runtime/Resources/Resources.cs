@@ -1050,6 +1050,51 @@ namespace Kraty
             ).ConfigureAwait(false);
             return env.Data?.AnonymizedIdentity;
         }
+
+        /// <summary>
+        /// PUT the calling player's free-form <c>metadata</c> bag wholesale.
+        /// Studio-defined keys — anything the platform's own model doesn't
+        /// cover (VIP flag, gender, preferred language, cohort). Surfaced
+        /// on every leaderboard entry so game code can render metadata-aware
+        /// UI without a second lookup. Use <see cref="MergeMetadataAsync"/>
+        /// if you only want to update a subset of keys.
+        /// </summary>
+        public async Task<Dictionary<string, object?>?> SetMetadataAsync(
+            Dictionary<string, object?> metadata,
+            string? @as = null,
+            CancellationToken ct = default
+        )
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<PlayerMetadataResult>>(
+                HttpMethod.Put,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/metadata",
+                body: metadata,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Metadata;
+        }
+
+        /// <summary>
+        /// PATCH the calling player's metadata: shallow-merge the given
+        /// keys into the existing bag. Keys not in <paramref name="patch"/>
+        /// stay untouched.
+        /// </summary>
+        public async Task<Dictionary<string, object?>?> MergeMetadataAsync(
+            Dictionary<string, object?> patch,
+            string? @as = null,
+            CancellationToken ct = default
+        )
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<PlayerMetadataResult>>(
+                HttpMethod.Patch,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/metadata",
+                body: patch,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Metadata;
+        }
     }
 
     /// <summary>

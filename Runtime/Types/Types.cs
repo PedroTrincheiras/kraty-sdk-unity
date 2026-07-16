@@ -759,6 +759,17 @@ namespace Kraty
     }
 
     /// <summary>
+    /// Response of <c>PUT/PATCH /sdk/v1/players/:externalId/metadata</c>.
+    /// The full metadata bag AFTER the write (so a PATCH caller can see
+    /// the merged result without a follow-up GET).
+    /// </summary>
+    public sealed class PlayerMetadataResult
+    {
+        [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
+        [JsonProperty("metadata")] public Dictionary<string, object?> Metadata { get; set; } = new();
+    }
+
+    /// <summary>
     /// One row in the player's platform-managed inventory. Returned by
     /// <c>GET /sdk/v1/players/:externalId/inventory</c>. The item's
     /// display name and other catalog metadata live on the <c>items</c>
