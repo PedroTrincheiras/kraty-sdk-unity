@@ -988,7 +988,7 @@ namespace Kraty
         /// empty or over-long name.
         /// </para>
         /// </summary>
-        public async Task<PlayerIdentity> SetIdentityAsync(
+        public async Task<PlayerIdentity?> SetIdentityAsync(
             string name,
             string? avatar = null,
             string? @as = null,
@@ -1004,7 +1004,51 @@ namespace Kraty
                 body: body,
                 cancellationToken: ct
             ).ConfigureAwait(false);
-            return env.Data?.SyntheticIdentity ?? new PlayerIdentity { Name = name, Avatar = avatar };
+            return env.Data?.DisplayIdentity;
+        }
+
+        /// <summary>
+        /// GET the player's REAL display identity — what
+        /// <see cref="SetIdentityAsync"/> wrote, falling back to the
+        /// anonymized pool value when the player never renamed themselves.
+        /// Enriched with the server-resolved country so a UI can render a
+        /// flag next to the name in one round-trip. Use for self-facing
+        /// surfaces where the real handle should show if picked.
+        /// </summary>
+        public async Task<PlayerIdentity?> GetIdentityAsync(
+            string? @as = null,
+            CancellationToken ct = default
+        )
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<SetIdentityResult>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/identity",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.DisplayIdentity;
+        }
+
+        /// <summary>
+        /// GET the player's ANONYMIZED identity — always the immutable
+        /// synthetic-pool value plus country, regardless of any
+        /// <see cref="SetIdentityAsync"/> overrides. Use for public
+        /// leaderboards or any surface where the real name shouldn't
+        /// leak. Pair with <see cref="GetIdentityAsync"/> for a
+        /// "real if set, anonymized otherwise" flow.
+        /// </summary>
+        public async Task<PlayerIdentity?> GetAnonymizedIdentityAsync(
+            string? @as = null,
+            CancellationToken ct = default
+        )
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<SetIdentityResult>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/identity",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.AnonymizedIdentity;
         }
     }
 

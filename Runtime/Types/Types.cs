@@ -318,6 +318,18 @@ namespace Kraty
         /// <summary>ISO-3166 alpha-2 country of the player (e.g. "PT") for a flag;
         /// null for bots and when the server couldn't resolve it.</summary>
         [JsonProperty("country")] public string? Country { get; set; }
+        /// <summary>
+        /// Immutable anonymized display name for players (the synthetic-pool
+        /// value). <see cref="Name"/> holds the player's real display value
+        /// (from <c>SetIdentity</c>) with a fallback to the pool value; this
+        /// field carries the pool value directly so games can render a
+        /// privacy-preserving view (public boards, cross-game aggregations)
+        /// without a second lookup. Null on bot entries and on rows that
+        /// predate the split feature.
+        /// </summary>
+        [JsonProperty("anonymizedName")] public string? AnonymizedName { get; set; }
+        /// <summary>Matching avatar reference for <see cref="AnonymizedName"/>.</summary>
+        [JsonProperty("anonymizedAvatar")] public string? AnonymizedAvatar { get; set; }
         [JsonProperty("score")] public double Score { get; set; }
         [JsonProperty("rank")] public int Rank { get; set; }
         /// <summary>
@@ -706,24 +718,44 @@ namespace Kraty
         [JsonProperty("secret")] public string Secret { get; set; } = string.Empty;
         [JsonProperty("secretPrefix")] public string? SecretPrefix { get; set; }
         [JsonProperty("registeredAt")] public string? RegisteredAt { get; set; }
+        /// <summary>ISO-3166 alpha-2 country resolved server-side.</summary>
+        [JsonProperty("country")] public string? Country { get; set; }
+        /// <summary>
+        /// Real display identity: reflects the value <c>SetIdentity</c>
+        /// wrote, falling back to the synthetic-pool value when the
+        /// player never renamed themselves. Enriched with country.
+        /// </summary>
+        [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+        /// <summary>
+        /// Immutable anonymized identity (synthetic-pool value) enriched
+        /// with country. Untouched by <c>SetIdentity</c>; use it for
+        /// privacy-preserving surfaces (public boards).
+        /// </summary>
+        [JsonProperty("anonymizedIdentity")] public PlayerIdentity? AnonymizedIdentity { get; set; }
     }
 
     /// <summary>
-    /// A player's display identity (name + optional avatar) — the
-    /// privacy-preserving alias surfaced on leaderboards. Returned by
-    /// <see cref="PlayersClient.SetIdentityAsync"/>.
+    /// Public identity envelope: <c>Name</c> + optional <c>Avatar</c>
+    /// enriched with the player's <c>Country</c>. Returned by both
+    /// <see cref="PlayersClient.GetIdentityAsync"/> (real display value)
+    /// and <see cref="PlayersClient.GetAnonymizedIdentityAsync"/> (the
+    /// immutable synthetic-pool value); <c>Country</c> is the same on
+    /// either view because a player has one real country regardless of
+    /// which name/avatar the caller chose to render.
     /// </summary>
     public sealed class PlayerIdentity
     {
         [JsonProperty("name")] public string Name { get; set; } = string.Empty;
         [JsonProperty("avatar")] public string? Avatar { get; set; }
+        [JsonProperty("country")] public string? Country { get; set; }
     }
 
     /// <summary>Response of <c>PUT /sdk/v1/players/:externalId/identity</c>.</summary>
     public sealed class SetIdentityResult
     {
         [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
-        [JsonProperty("syntheticIdentity")] public PlayerIdentity? SyntheticIdentity { get; set; }
+        [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+        [JsonProperty("anonymizedIdentity")] public PlayerIdentity? AnonymizedIdentity { get; set; }
     }
 
     /// <summary>
