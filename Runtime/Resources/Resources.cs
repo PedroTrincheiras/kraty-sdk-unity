@@ -1098,6 +1098,279 @@ namespace Kraty
     }
 
     /// <summary>
+    /// Resource client for the player social graph, under
+    /// <c>/sdk/v1/players/:externalId/...</c>: friend codes, requests, the
+    /// friends list with live presence, username search, and blocking.
+    ///
+    /// <para>
+    /// Every method is authorized by the active player's own secret, so a
+    /// client can only ever act on ITS OWN social graph — friends are always
+    /// scoped to the same game + environment. Pass <c>as</c> on any method
+    /// to address a different player (server-side tooling only).
+    /// </para>
+    /// </summary>
+    public sealed class FriendsClient
+    {
+        private readonly KratyClient _client;
+        public FriendsClient(KratyClient client) => _client = client;
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/friend-code</c>: the caller's short,
+        /// shareable friend code (unambiguous alphabet), generated on first
+        /// use and stable forever after. Share it out-of-band so a friend can
+        /// <see cref="AddAsync"/> you without a username search.
+        /// </summary>
+        public async Task<FriendCode> GetCodeAsync(
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<FriendCode>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friend-code",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new FriendCode();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/presence</c>: refresh the caller's
+        /// online status. Call every ~30s while the player is active;
+        /// presence expires automatically when heartbeats stop. Optionally
+        /// set a free-form <paramref name="status"/> label ("in_match",
+        /// "lobby", …) that friends see; leave it null to just refresh
+        /// presence without touching the label.
+        /// </summary>
+        public async Task<PlayerPresence> HeartbeatAsync(
+            string? status = null,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var body = new Dictionary<string, object?>();
+            if (status != null) body["status"] = status;
+            var env = await _client.RequestAsync<DataEnvelope<PlayerPresence>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/presence",
+                body: body,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new PlayerPresence();
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/friends</c>: the caller's accepted
+        /// friends, each enriched with display identity and live presence
+        /// (online / last-active / status).
+        /// </summary>
+        public async Task<List<Friend>> ListAsync(
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<FriendsListEnvelope>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Friends ?? new List<Friend>();
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/friends/search?q=</c>: find other
+        /// players by display name within the same game + environment. Each
+        /// hit reports the caller's relationship to that player; blocked
+        /// players are omitted.
+        /// </summary>
+        public async Task<List<FriendSearchResult>> SearchAsync(
+            string query,
+            int? limit = null,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var qs = new List<string> { $"q={Uri.EscapeDataString(query ?? string.Empty)}" };
+            if (limit.HasValue) qs.Add($"limit={limit.Value}");
+            var path = $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/search?{string.Join("&", qs)}";
+            var env = await _client.RequestAsync<DataEnvelope<FriendSearchEnvelope>>(
+                HttpMethod.Get, path, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Results ?? new List<FriendSearchResult>();
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/friends/requests</c>: the caller's
+        /// pending incoming + outgoing friend requests.
+        /// </summary>
+        public async Task<FriendRequests> ListRequestsAsync(
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<FriendRequests>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/requests",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new FriendRequests();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/friends/requests</c>: add another
+        /// player by friend code or external id (set exactly one on
+        /// <paramref name="target"/>). Creates a pending request they must
+        /// accept — unless they had already requested the caller, in which
+        /// case the friendship is accepted immediately
+        /// (<c>Status == "accepted"</c>). Throws <see cref="KratyApiError"/>
+        /// on <c>player_blocked</c> (403), <c>already_friends</c> (409),
+        /// <c>cannot_friend_self</c> (400), or <c>friend_code_invalid</c>
+        /// (404).
+        /// </summary>
+        public async Task<SendFriendRequestResult> AddAsync(
+            FriendTarget target,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<SendFriendRequestResult>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/requests",
+                body: target,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new SendFriendRequestResult();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/friends/requests/:id/accept</c>: accept
+        /// an incoming request, returning the newly-confirmed friend.
+        /// </summary>
+        public async Task<Friend> AcceptAsync(
+            string requestId,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<FriendEnvelope>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/requests/{Uri.EscapeDataString(requestId)}/accept",
+                body: new Dictionary<string, object?>(),
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Friend ?? new Friend();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/friends/requests/:id/decline</c>:
+        /// decline an incoming request.
+        /// </summary>
+        public async Task DeclineAsync(
+            string requestId,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            await _client.RequestAsync<DataEnvelope<Newtonsoft.Json.Linq.JObject>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/requests/{Uri.EscapeDataString(requestId)}/decline",
+                body: new Dictionary<string, object?>(),
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// DELETE <c>/sdk/v1/players/:p/friends/requests/:id</c>: cancel an
+        /// outgoing request.
+        /// </summary>
+        public async Task CancelRequestAsync(
+            string requestId,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            await _client.RequestAsync<DataEnvelope<Newtonsoft.Json.Linq.JObject>>(
+                HttpMethod.Delete,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/requests/{Uri.EscapeDataString(requestId)}",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// DELETE <c>/sdk/v1/players/:p/friends/:friendExternalId</c>: remove
+        /// an existing friend.
+        /// </summary>
+        public async Task RemoveAsync(
+            string friendExternalId,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            await _client.RequestAsync<DataEnvelope<Newtonsoft.Json.Linq.JObject>>(
+                HttpMethod.Delete,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/{Uri.EscapeDataString(friendExternalId)}",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/blocks</c>: the players the caller has
+        /// blocked.
+        /// </summary>
+        public async Task<List<BlockedPlayer>> ListBlocksAsync(
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<BlockedListEnvelope>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/blocks",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Blocked ?? new List<BlockedPlayer>();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/blocks</c>: block a player by friend
+        /// code or external id (set exactly one on <paramref name="target"/>).
+        /// Tears down any friendship / pending request between the two and
+        /// hides each from the other's search + presence.
+        /// </summary>
+        public async Task<BlockedPlayer> BlockAsync(
+            FriendTarget target,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<BlockEnvelope>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/blocks",
+                body: target,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Blocked ?? new BlockedPlayer();
+        }
+
+        /// <summary>
+        /// DELETE <c>/sdk/v1/players/:p/blocks/:blockedExternalId</c>:
+        /// unblock a player.
+        /// </summary>
+        public async Task UnblockAsync(
+            string blockedExternalId,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            await _client.RequestAsync<DataEnvelope<Newtonsoft.Json.Linq.JObject>>(
+                HttpMethod.Delete,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/blocks/{Uri.EscapeDataString(blockedExternalId)}",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// Resource client for <c>/sdk/v1/catalog</c>: single-shot read
     /// of every item + currency configured for the calling game.
     /// Studios call this once at boot and cache locally; pairs with

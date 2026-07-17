@@ -34,6 +34,7 @@ namespace Kraty
         public InventoryClient Inventory { get; }
         public WalletClient Wallet { get; }
         public PlayersClient Players { get; }
+        public FriendsClient Friends { get; }
         public CatalogClient Catalog { get; }
 
         public Kraty(KratyClientOptions opts)
@@ -47,6 +48,7 @@ namespace Kraty
             Inventory = new InventoryClient(Client);
             Wallet = new WalletClient(Client);
             Players = new PlayersClient(Client);
+            Friends = new FriendsClient(Client);
             Catalog = new CatalogClient(Client);
         }
 

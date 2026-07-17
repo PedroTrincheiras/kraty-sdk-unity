@@ -859,6 +859,133 @@ namespace Kraty
         [JsonProperty("applied")] public bool Applied { get; set; }
     }
 
+    // ── Friends / social graph ───────────────────────────────────────────
+
+    /// <summary>
+    /// A confirmed friend, enriched with identity + live presence. Mirrors
+    /// the OpenAPI <c>Friend</c> component. <see cref="Online"/> /
+    /// <see cref="LastActiveAt"/> / <see cref="Status"/> come from the
+    /// friend's heartbeat and are only fresh while they keep beating.
+    /// </summary>
+    public sealed class Friend
+    {
+        [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
+        [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+        /// <summary>ISO timestamp the friendship was established.</summary>
+        [JsonProperty("friendsSince")] public string FriendsSince { get; set; } = string.Empty;
+        [JsonProperty("online")] public bool Online { get; set; }
+        /// <summary>ISO timestamp of their last heartbeat, or null when never/expired.</summary>
+        [JsonProperty("lastActiveAt")] public string? LastActiveAt { get; set; }
+        /// <summary>Free-form client-set status ("in_match", "lobby", …), or null.</summary>
+        [JsonProperty("status")] public string? Status { get; set; }
+    }
+
+    /// <summary>The caller's shareable friend code + display identity.</summary>
+    public sealed class FriendCode
+    {
+        /// <summary>Short, unambiguous, stable share code (e.g. <c>"K7F2QX"</c>).</summary>
+        [JsonProperty("friendCode")] public string Code { get; set; } = string.Empty;
+        [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+    }
+
+    /// <summary>The player's own presence after a heartbeat.</summary>
+    public sealed class PlayerPresence
+    {
+        [JsonProperty("online")] public bool Online { get; set; }
+        [JsonProperty("lastActiveAt")] public string? LastActiveAt { get; set; }
+        [JsonProperty("status")] public string? Status { get; set; }
+    }
+
+    /// <summary>
+    /// The other player on a <see cref="FriendRequest"/> (the requester on
+    /// an incoming request, the target on an outgoing one).
+    /// </summary>
+    public sealed class FriendRequestPlayer
+    {
+        [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
+        [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+    }
+
+    /// <summary>A pending friend request, incoming or outgoing.</summary>
+    public sealed class FriendRequest
+    {
+        [JsonProperty("requestId")] public string RequestId { get; set; } = string.Empty;
+        /// <summary>One of <c>incoming</c>, <c>outgoing</c>.</summary>
+        [JsonProperty("direction")] public string Direction { get; set; } = string.Empty;
+        [JsonProperty("player")] public FriendRequestPlayer Player { get; set; } = new();
+        [JsonProperty("createdAt")] public string CreatedAt { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Response from <see cref="FriendsClient.ListRequestsAsync"/>: the
+    /// caller's pending incoming + outgoing friend requests.
+    /// </summary>
+    public sealed class FriendRequests
+    {
+        [JsonProperty("incoming")] public List<FriendRequest> Incoming { get; set; } = new();
+        [JsonProperty("outgoing")] public List<FriendRequest> Outgoing { get; set; } = new();
+    }
+
+    /// <summary>
+    /// A username-search hit + the caller's relationship to that player.
+    /// </summary>
+    public sealed class FriendSearchResult
+    {
+        [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
+        [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+        /// <summary>One of <c>none</c>, <c>friends</c>, <c>request_incoming</c>, <c>request_outgoing</c>.</summary>
+        [JsonProperty("relationship")] public string Relationship { get; set; } = string.Empty;
+    }
+
+    /// <summary>A player the caller has blocked.</summary>
+    public sealed class BlockedPlayer
+    {
+        [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
+        [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+        [JsonProperty("blockedAt")] public string BlockedAt { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Result of <see cref="FriendsClient.AddAsync"/>: either a
+    /// newly-pending request (<c>Status == "pending"</c>, see
+    /// <see cref="Request"/>), or an immediately-accepted friendship
+    /// (<c>Status == "accepted"</c>, see <see cref="Friend"/>) when the
+    /// other player had already requested the caller (reciprocal
+    /// auto-accept).
+    /// </summary>
+    public sealed class SendFriendRequestResult
+    {
+        /// <summary>One of <c>pending</c>, <c>accepted</c>.</summary>
+        [JsonProperty("status")] public string Status { get; set; } = string.Empty;
+        /// <summary>Set when <see cref="Status"/> is <c>pending</c>.</summary>
+        [JsonProperty("request")] public FriendRequest? Request { get; set; }
+        /// <summary>Set when <see cref="Status"/> is <c>accepted</c>.</summary>
+        [JsonProperty("friend")] public Friend? Friend { get; set; }
+    }
+
+    /// <summary>
+    /// Add-or-block target for <see cref="FriendsClient.AddAsync"/> and
+    /// <see cref="FriendsClient.BlockAsync"/>: set exactly ONE of
+    /// <see cref="FriendCode"/> or <see cref="ExternalPlayerId"/>. Prefer
+    /// the <see cref="ByCode"/> / <see cref="ByPlayerId"/> factories.
+    /// </summary>
+    public sealed class FriendTarget
+    {
+        /// <summary>A shareable friend code (from <see cref="FriendsClient.GetCodeAsync"/>).</summary>
+        [JsonProperty("friendCode", NullValueHandling = NullValueHandling.Ignore)]
+        public string? FriendCode { get; set; }
+
+        /// <summary>The target player's external id.</summary>
+        [JsonProperty("externalPlayerId", NullValueHandling = NullValueHandling.Ignore)]
+        public string? ExternalPlayerId { get; set; }
+
+        /// <summary>Target a player by their shareable friend code.</summary>
+        public static FriendTarget ByCode(string friendCode) => new() { FriendCode = friendCode };
+
+        /// <summary>Target a player by their external id.</summary>
+        public static FriendTarget ByPlayerId(string externalPlayerId) => new() { ExternalPlayerId = externalPlayerId };
+    }
+
     /// <summary>
     /// Inventory list response wrapper; the backend nests the list
     /// inside <c>{ "data": { "items": [...] } }</c>.
@@ -875,6 +1002,36 @@ namespace Kraty
     internal sealed class WalletListEnvelope
     {
         [JsonProperty("wallet")] public List<PlayerWalletHolding>? Wallet { get; set; }
+    }
+
+    /// <summary>Wrapper for <c>{ "data": { "friends": [...] } }</c>.</summary>
+    internal sealed class FriendsListEnvelope
+    {
+        [JsonProperty("friends")] public List<Friend>? Friends { get; set; }
+    }
+
+    /// <summary>Wrapper for <c>{ "data": { "results": [...] } }</c>.</summary>
+    internal sealed class FriendSearchEnvelope
+    {
+        [JsonProperty("results")] public List<FriendSearchResult>? Results { get; set; }
+    }
+
+    /// <summary>Wrapper for <c>{ "data": { "friend": {...} } }</c>.</summary>
+    internal sealed class FriendEnvelope
+    {
+        [JsonProperty("friend")] public Friend? Friend { get; set; }
+    }
+
+    /// <summary>Wrapper for <c>{ "data": { "blocked": [...] } }</c>.</summary>
+    internal sealed class BlockedListEnvelope
+    {
+        [JsonProperty("blocked")] public List<BlockedPlayer>? Blocked { get; set; }
+    }
+
+    /// <summary>Wrapper for <c>{ "data": { "blocked": {...} } }</c>.</summary>
+    internal sealed class BlockEnvelope
+    {
+        [JsonProperty("blocked")] public BlockedPlayer? Blocked { get; set; }
     }
 
     /// <summary>
