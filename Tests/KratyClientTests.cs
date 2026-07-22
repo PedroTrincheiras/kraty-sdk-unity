@@ -520,5 +520,52 @@ namespace Kraty.Tests
             Assert.Equal(409, err.Status);
             Assert.Equal("conflict", err.Code);
         }
+
+        // ── server clock (/sdk/v1/time) ──────────────────────────────
+        // Mirror of the TS SDK's "server clock" describe block.
+
+        private const string TimeBody =
+            "{\"data\":{\"epochMs\":1800000000000,\"iso\":\"2027-01-15T08:00:00.000Z\"," +
+            "\"timezone\":\"UTC\",\"offsetMinutes\":0,\"local\":\"2027-01-15T08:00:00\"}}";
+
+        [Fact]
+        public async Task GetServerTimeGetsTimeRouteAndReturnsPayload()
+        {
+            var handler = new FakeHandler().Push(200, TimeBody);
+            using var kraty = new Kraty(BaseOpts(handler));
+            var t = await kraty.GetServerTimeAsync();
+            Assert.Contains("/sdk/v1/time", handler.Calls[0].Url);
+            Assert.DoesNotContain("timezone=", handler.Calls[0].Url);
+            Assert.Equal(1800000000000L, t.EpochMs);
+            Assert.Equal("UTC", t.Timezone);
+        }
+
+        [Fact]
+        public async Task GetServerTimePassesTimezoneQueryParamWhenGiven()
+        {
+            var handler = new FakeHandler().Push(200,
+                "{\"data\":{\"epochMs\":1800000000000,\"iso\":\"2027-01-15T08:00:00.000Z\"," +
+                "\"timezone\":\"Europe/Lisbon\",\"offsetMinutes\":0,\"local\":\"2027-01-15T08:00:00\"}}");
+            using var kraty = new Kraty(BaseOpts(handler));
+            var t = await kraty.GetServerTimeAsync("Europe/Lisbon");
+            Assert.Contains("timezone=Europe%2FLisbon", handler.Calls[0].Url);
+            Assert.Equal("Europe/Lisbon", t.Timezone);
+        }
+
+        [Fact]
+        public async Task ServerNowIsAnchoredToServerEpochAfterSyncTime()
+        {
+            var handler = new FakeHandler().Push(200, TimeBody);
+            using var kraty = new Kraty(BaseOpts(handler));
+            Assert.False(kraty.IsTimeSynced);
+            Assert.Throws<InvalidOperationException>(() => kraty.ServerNowMs()); // not synced yet
+            await kraty.SyncTimeAsync();
+            Assert.True(kraty.IsTimeSynced);
+            var now = kraty.ServerNowMs();
+            // Anchored to the server epoch + a tiny monotonic elapsed (test runs fast).
+            Assert.True(now >= 1800000000000L);
+            Assert.True(now < 1800000000000L + 5000L);
+            Assert.Equal(DateTimeKind.Utc, kraty.ServerNow().Kind);
+        }
     }
 }

@@ -859,6 +859,43 @@ namespace Kraty
         [JsonProperty("applied")] public bool Applied { get; set; }
     }
 
+    /// <summary>
+    /// Trustworthy server clock, returned by
+    /// <see cref="KratyClient.GetServerTimeAsync"/>. Use it as an anti-cheat
+    /// time source: game timers (event countdowns, etc.) should be checked
+    /// against the server clock rather than the device clock, which a player
+    /// can trivially change to fake a still-running event. Compare
+    /// <see cref="EpochMs"/> against an event's <c>endsAt</c>.
+    /// </summary>
+    public sealed class ServerTime
+    {
+        /// <summary>
+        /// Unix epoch milliseconds (UTC). This is the value to compare against
+        /// event <c>endsAt</c> — always compare with <see cref="EpochMs"/>, not
+        /// with <see cref="Local"/>.
+        /// </summary>
+        [JsonProperty("epochMs")] public long EpochMs { get; set; }
+
+        /// <summary>UTC ISO-8601 string (e.g. <c>2027-01-15T08:00:00.000Z</c>).</summary>
+        [JsonProperty("iso")] public string Iso { get; set; } = string.Empty;
+
+        /// <summary>
+        /// IANA timezone the <see cref="Local"/> / <see cref="OffsetMinutes"/>
+        /// fields describe (<c>UTC</c> unless a <c>timezone</c> was requested).
+        /// </summary>
+        [JsonProperty("timezone")] public string Timezone { get; set; } = "UTC";
+
+        /// <summary><see cref="Timezone"/>'s offset from UTC at this instant, in minutes.</summary>
+        [JsonProperty("offsetMinutes")] public int OffsetMinutes { get; set; }
+
+        /// <summary>
+        /// Wall-clock in <see cref="Timezone"/>, ISO-like without a zone suffix
+        /// (<c>YYYY-MM-DDTHH:mm:ss</c>). Display only — always compare with
+        /// <see cref="EpochMs"/>.
+        /// </summary>
+        [JsonProperty("local")] public string Local { get; set; } = string.Empty;
+    }
+
     // ── Friends / social graph ───────────────────────────────────────────
 
     /// <summary>

@@ -92,6 +92,15 @@ namespace Kraty
         [JsonProperty("score")] public double Score { get; set; }
         [JsonProperty("name")] public string Name { get; set; } = string.Empty;
         [JsonProperty("kind")] public string Kind { get; set; } = StandingKind.Player;
+        /// <summary>Avatar reference for this row, or null (bots / unset).
+        /// Populated when the standings came from a board read (the normal
+        /// path); may be null on the rare live-broadcast fallback.</summary>
+        [JsonProperty("avatar")] public string? Avatar { get; set; }
+        /// <summary>True for the row belonging to the player who received this
+        /// result — use it to highlight "you" without matching ids yourself.
+        /// Server-resolved on the board read; false on the live-broadcast
+        /// fallback.</summary>
+        [JsonProperty("isSelf")] public bool IsSelf { get; set; }
     }
 
     public sealed class SelfEntry
@@ -119,11 +128,16 @@ namespace Kraty
         public bool Finalized { get; }
         public string? Reason { get; }
         public SelfEntry? Self { get; }
-        public EventLeaderboardStatus(bool finalized, string? reason, SelfEntry? self)
+        /// <summary>The board's final rows (server-resolved: avatar + isSelf per
+        /// row), so a finalization can be rendered without a second fetch. Null
+        /// when the read couldn't return them.</summary>
+        public IReadOnlyList<FinalStanding>? Standings { get; }
+        public EventLeaderboardStatus(bool finalized, string? reason, SelfEntry? self, IReadOnlyList<FinalStanding>? standings = null)
         {
             Finalized = finalized;
             Reason = reason;
             Self = self;
+            Standings = standings;
         }
     }
 
@@ -290,12 +304,34 @@ namespace Kraty
                 ? reasonRaw
                 : FinalizationReason.Finalized;
             var @ref = MembershipRef.EventLeaderboard(leaderboardId);
+            // The live `finalized` frame is a board-wide BROADCAST, so it can't
+            // carry this viewer's `self` or per-row `isSelf`. Enrich with one
+            // per-player board read so the result carries server-resolved
+            // standings (avatar + isSelf) and the caller's self entry. Falls
+            // back to the broadcast standings (no isSelf) if the read is
+            // unavailable — delivery still happens either way.
+            EventLeaderboardStatus? read;
+            try { read = await _readEventLeaderboard(leaderboardId).ConfigureAwait(false); }
+            catch { read = null; }
+            var standings = read?.Standings ?? ExtractBroadcastStandings(data);
             await ResolveFinalizedAsync(playerId, @ref, new FinalizationResult
             {
                 Ref = @ref,
-                Reason = reason,
-                Self = null, // not in the stream payload; match self in standings by participantId
+                Reason = reason, // keep the precise SSE reason over the read's
+                Self = read?.Self,
+                Standings = standings,
             }).ConfigureAwait(false);
+        }
+
+        // Parse the board-wide `standings` array off the live broadcast frame,
+        // used only as a fallback when the per-player board read is unavailable.
+        // Rows from here have no per-viewer `isSelf`. Returns null when absent
+        // or unparseable.
+        private static IReadOnlyList<FinalStanding>? ExtractBroadcastStandings(IDictionary<string, Newtonsoft.Json.Linq.JToken>? data)
+        {
+            if (data == null || !data.TryGetValue("standings", out var token) || token == null) return null;
+            try { return token.ToObject<List<FinalStanding>>(); }
+            catch { return null; }
         }
 
         /// <summary>Catch-up path: poll still-active tracked boards and report any
@@ -323,6 +359,7 @@ namespace Kraty
                     // only the fallback if the backend didn't supply a reason.
                     Reason = status.Reason ?? FinalizationReason.Finalized,
                     Self = status.Self,
+                    Standings = status.Standings,
                     EventKey = e.Ref.EventKey,
                 };
                 if (await ResolveFinalizedAsync(playerId, e.Ref, result).ConfigureAwait(false))

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -206,6 +207,15 @@ namespace Kraty
         private readonly FinalizationTracker _finalization;
         private readonly object _identityGate = new();
         private Task<(string ExternalPlayerId, string Secret)>? _identityInit;
+        // Monotonic clock backing the tamper-proof server-time anchor (see the
+        // "Server clock" region). Stopwatch is driven by the high-resolution
+        // performance counter, NOT the system wall-clock, so its elapsed reading
+        // can't be moved by a player changing their device clock. Started once.
+        private readonly System.Diagnostics.Stopwatch _monoClock = System.Diagnostics.Stopwatch.StartNew();
+        // Server-clock anchor (see SyncTimeAsync): the server epoch captured at
+        // sync + the MONOTONIC reading at that instant, so ServerNow() advances
+        // immune to the device wall-clock being changed. Null until synced.
+        private (long ServerMs, long MonoMs)? _timeAnchor;
 
         public KratyClient(KratyClientOptions opts)
         {
@@ -248,7 +258,11 @@ namespace Kraty
             if (string.IsNullOrEmpty(ext)) return null;
             try
             {
-                var qs = $"includeSelf=true&externalId={Uri.EscapeDataString(ext!)}&limit=1";
+                // Pull the top rows (not just self) so a finalization can be
+                // rendered straight from the result — each row already carries
+                // server-resolved avatar + isSelf, so the app doesn't re-fetch
+                // or match ids.
+                var qs = $"includeSelf=true&externalId={Uri.EscapeDataString(ext!)}&limit=50";
                 var env = await RequestAsync<DataEnvelope<EventLeaderboard>>(
                     HttpMethod.Get,
                     $"/sdk/v1/event-leaderboards/{Uri.EscapeDataString(leaderboardId)}?{qs}"
@@ -256,7 +270,17 @@ namespace Kraty
                 var lb = env.Data;
                 if (lb == null) return null;
                 var self = lb.Self != null ? new SelfEntry(lb.Self.Rank, lb.Self.Score) : null;
-                return new EventLeaderboardStatus(lb.Finalized, lb.FinalizedReason, self);
+                var standings = lb.Entries.Select(e => new FinalStanding
+                {
+                    ParticipantId = e.ParticipantId,
+                    Rank = e.Rank,
+                    Score = e.Score,
+                    Name = e.Name ?? string.Empty,
+                    Kind = e.Kind == StandingKind.Bot ? StandingKind.Bot : StandingKind.Player,
+                    Avatar = e.Avatar,
+                    IsSelf = e.IsSelf,
+                }).ToList();
+                return new EventLeaderboardStatus(lb.Finalized, lb.FinalizedReason, self, standings);
             }
             catch
             {
@@ -688,6 +712,84 @@ namespace Kraty
         // the registry is updated (not just the callback fired). See docs/05b.
         internal Task RouteFinalizedAsync(string leaderboardId, IDictionary<string, JToken>? data) =>
             _finalization.OnStreamFinalizedAsync(leaderboardId, data);
+
+        // ── Server clock ─────────────────────────────────────────────
+        // A trustworthy time source: fetch the server's clock so game timers
+        // (event countdowns, etc.) can't be cheated by changing the device
+        // clock. Compare the returned epoch / ServerNow() against event endsAt.
+
+        /// <summary>
+        /// Fetch the server's current time. <see cref="ServerTime.EpochMs"/>
+        /// (UTC) is the value to compare against an event's <c>endsAt</c>: a
+        /// player can change their device clock to fake a still-running event,
+        /// so timer checks should rely on the server clock, not the device one.
+        /// Pass <paramref name="timezone"/> (an IANA name, e.g.
+        /// <c>"Europe/Lisbon"</c>) to also receive that zone's wall-clock
+        /// (<see cref="ServerTime.Local"/>) + <see cref="ServerTime.OffsetMinutes"/>
+        /// for display — comparisons should still use
+        /// <see cref="ServerTime.EpochMs"/>. An invalid IANA name returns HTTP
+        /// 400 (surfaced as a <see cref="KratyApiError"/>).
+        /// </summary>
+        public async Task<ServerTime> GetServerTimeAsync(string? timezone = null, CancellationToken ct = default)
+        {
+            var qs = string.IsNullOrEmpty(timezone)
+                ? string.Empty
+                : $"?timezone={Uri.EscapeDataString(timezone!)}";
+            var env = await RequestAsync<DataEnvelope<ServerTime>>(
+                HttpMethod.Get,
+                $"/sdk/v1/time{qs}",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? throw new KratyNetworkError("kraty: server time response had no data");
+        }
+
+        /// <summary>
+        /// Anchor a tamper-proof clock: fetch the server time once and pin it to
+        /// a MONOTONIC reference (a <see cref="System.Diagnostics.Stopwatch"/>,
+        /// driven by the performance counter rather than the wall-clock), so
+        /// <see cref="ServerNow"/> / <see cref="ServerNowMs"/> keep ticking
+        /// correctly even if the player changes their device clock afterwards.
+        /// Call at startup and again on app resume. Network latency introduces
+        /// at most a sub-second skew, negligible for event timers.
+        /// </summary>
+        public async Task SyncTimeAsync(CancellationToken ct = default)
+        {
+            var t = await GetServerTimeAsync(timezone: null, ct: ct).ConfigureAwait(false);
+            _timeAnchor = (t.EpochMs, MonotonicNowMs());
+        }
+
+        /// <summary>True once <see cref="SyncTimeAsync"/> has succeeded at least once.</summary>
+        public bool IsTimeSynced => _timeAnchor != null;
+
+        /// <summary>
+        /// Current server time as Unix epoch ms (UTC), derived from the last
+        /// <see cref="SyncTimeAsync"/> anchor + monotonic elapsed — safe against
+        /// device-clock tampering. Compare it against an event's <c>endsAt</c>.
+        /// Throws <see cref="InvalidOperationException"/> if
+        /// <see cref="SyncTimeAsync"/> hasn't run yet.
+        /// </summary>
+        public long ServerNowMs()
+        {
+            if (_timeAnchor == null)
+            {
+                throw new InvalidOperationException(
+                    "kraty: call SyncTimeAsync() before ServerNow()/ServerNowMs()");
+            }
+            var anchor = _timeAnchor.Value;
+            return anchor.ServerMs + (MonotonicNowMs() - anchor.MonoMs);
+        }
+
+        /// <summary>
+        /// <see cref="ServerNowMs"/> as a UTC <see cref="DateTime"/>. Throws
+        /// <see cref="InvalidOperationException"/> if not yet synced.
+        /// </summary>
+        public DateTime ServerNow() =>
+            DateTimeOffset.FromUnixTimeMilliseconds(ServerNowMs()).UtcDateTime;
+
+        // Monotonic milliseconds from the long-lived Stopwatch. Immune to device
+        // wall-clock changes (the counter can only ever advance), which is what
+        // makes the server-time anchor tamper-proof.
+        private long MonotonicNowMs() => _monoClock.ElapsedMilliseconds;
 
         // Picks PlayerPrefsSecretStore on Unity, in-memory elsewhere.
         // Most game clients never need to override; the default does

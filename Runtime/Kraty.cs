@@ -109,6 +109,30 @@ namespace Kraty
         public Task<int> ClearReportedAsync() => Client.ClearReportedAsync();
 
         /// <summary>
+        /// Server clock. Fetch the backend's time so game timers can't be cheated
+        /// by changing the device clock. <see cref="GetServerTimeAsync"/> is a
+        /// one-shot fetch; <see cref="SyncTimeAsync"/> + <see cref="ServerNow"/>
+        /// give a tamper-proof local clock anchored to the server via a monotonic
+        /// reference (call <see cref="SyncTimeAsync"/> at startup + on resume).
+        /// Compare <see cref="ServerNow"/> / <see cref="ServerTime.EpochMs"/>
+        /// against an event's <c>endsAt</c>.
+        /// </summary>
+        public Task<ServerTime> GetServerTimeAsync(string? timezone = null, CancellationToken ct = default)
+            => Client.GetServerTimeAsync(timezone, ct);
+
+        /// <summary>Fetch server time once and anchor it to a monotonic clock. See <see cref="ServerNow"/>.</summary>
+        public Task SyncTimeAsync(CancellationToken ct = default) => Client.SyncTimeAsync(ct);
+
+        /// <summary>True once <see cref="SyncTimeAsync"/> has succeeded at least once.</summary>
+        public bool IsTimeSynced => Client.IsTimeSynced;
+
+        /// <summary>Tamper-proof current server time as Unix epoch ms (UTC). Throws if not synced.</summary>
+        public long ServerNowMs() => Client.ServerNowMs();
+
+        /// <summary>Tamper-proof current server time as a UTC <see cref="DateTime"/>. Throws if not synced.</summary>
+        public DateTime ServerNow() => Client.ServerNow();
+
+        /// <summary>
         /// Bootstrap a player-authenticated <see cref="Kraty"/> in one
         /// call. Reads the stored secret from
         /// <paramref name="secretStore"/>, registers if absent, retries
