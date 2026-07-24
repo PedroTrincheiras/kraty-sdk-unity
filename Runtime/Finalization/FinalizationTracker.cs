@@ -286,6 +286,17 @@ namespace Kraty
                 if (entry == null || entry.ReportedAt != null) return false;
                 entry.Status = TrackedMembership.StatusFinalized;
                 entry.ReportedAt = DateTime.UtcNow.ToString("o");
+                // Carry the TRACKED ref onto the result. It holds the eventKey
+                // captured at Start (Resources.StartAsync tracks
+                // EventLeaderboard(leaderboardId, eventKey)) plus the canonical
+                // board ref. The live SSE path builds a bare ref (leaderboardId
+                // only) and never sets EventKey, so without this a stream-
+                // delivered result has result.EventKey == null / Ref.EventKey ==
+                // null and a caller that `switch`es on EventKey can't route it.
+                // Catch-up already sets EventKey; doing it here makes BOTH paths
+                // consistent (single writer).
+                result.Ref = entry.Ref;
+                if (string.IsNullOrEmpty(result.EventKey)) result.EventKey = entry.Ref.EventKey;
                 await _store.SaveAsync(playerId, entries).ConfigureAwait(false); // persist BEFORE firing
                 Emit(result);
                 return true;
