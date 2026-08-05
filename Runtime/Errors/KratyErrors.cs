@@ -46,6 +46,9 @@ namespace Kraty
 
         // ── matchmaking ──────────────────────────────────────────────
         public const string LobbyForming = "lobby_forming";
+
+        // ── inventory ────────────────────────────────────────────────
+        public const string InventoryNotPermissive = "inventory_not_permissive";
     }
 
     /// <summary>
@@ -212,6 +215,14 @@ namespace Kraty
         /// once it transitions out of <c>forming</c>.
         /// </summary>
         public bool IsLobbyForming => Code == KratyErrorCode.LobbyForming;
+
+        /// <summary>
+        /// 403: a client-side <c>GrantAsync</c> on a game whose inventory
+        /// management isn't <c>permissive</c>. Enable it in the game's
+        /// Settings, or grant from your backend with a
+        /// <c>server_integration</c> key.
+        /// </summary>
+        public bool IsInventoryNotPermissive => Code == KratyErrorCode.InventoryNotPermissive;
     }
 
     /// <summary>

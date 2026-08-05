@@ -4,6 +4,14 @@ All notable changes to `app.kraty.sdk` (Kraty Unity SDK) live here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) +
 [SemVer](https://semver.org/).
 
+## [0.19.0](https://github.com/PedroTrincheiras/Kraty/compare/sdk-client-unity-v0.18.1...sdk-client-unity-v0.19.0) (2026-08-05)
+
+
+### Features
+
+* **inventory:** `GrantAsync()` — client-side self-grants for games in **permissive** inventory mode. The player-authenticated client grants items / currency / a crate to its OWN player (self only; enforced by the player secret). A game that isn't in permissive mode surfaces `IsInventoryNotPermissive`. Permissive is platform-managed, so a reward grant auto-deposits and is readable from `Inventory` / `Wallet`.
+* **leaderboards:** board-info reads now expose per-division promotion / relegation limits via the `Progression` field (`ProgressionLimits`), so a client can show how many players promote out of — or drop from — the current division.
+
 ## [0.18.1](https://github.com/PedroTrincheiras/Kraty/compare/sdk-client-unity-v0.18.0...sdk-client-unity-v0.18.1) (2026-07-24)
 
 

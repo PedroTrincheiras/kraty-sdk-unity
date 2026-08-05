@@ -351,6 +351,32 @@ namespace Kraty
     }
 
     /// <summary>
+    /// One side of a promotion/relegation ladder: the <c>Places</c> positions
+    /// (from the top for promotion, the bottom for relegation) that move, and
+    /// the progression <c>ItemKey</c> they nudge.
+    /// </summary>
+    public sealed class ProgressionBand
+    {
+        /// <summary>How many positions on this end move (e.g. top 3 promote).</summary>
+        [JsonProperty("places")] public int Places { get; set; }
+        /// <summary>The progression item climbed / dropped.</summary>
+        [JsonProperty("itemKey")] public string ItemKey { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Promotion / relegation limits for the caller's division, resolved from
+    /// server config (a per-division override wins over the global ladder).
+    /// Render "top N promote / bottom N relegate" from this instead of
+    /// hardcoding the cutoffs. Each side is <c>null</c> when no ladder runs on
+    /// that end.
+    /// </summary>
+    public sealed class ProgressionLimits
+    {
+        [JsonProperty("promotion")] public ProgressionBand? Promotion { get; set; }
+        [JsonProperty("relegation")] public ProgressionBand? Relegation { get; set; }
+    }
+
+    /// <summary>
     /// Response from <see cref="LeaderboardsClient.ReadAsync"/>: a
     /// configurable, cross-event leaderboard addressed by its game-scoped
     /// <c>key</c> (e.g. <c>"weekly_global"</c>). This is what most games
@@ -375,6 +401,9 @@ namespace Kraty
         [JsonProperty("period")] public string Period { get; set; } = string.Empty;
         [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
         [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
+        /// <summary>Promotion/relegation cutoffs for this division, from server
+        /// config; <c>null</c> when the board runs no ladder.</summary>
+        [JsonProperty("progression")] public ProgressionLimits? Progression { get; set; }
         /// <summary>
         /// <c>true</c> on the response to
         /// <see cref="LeaderboardsClient.JoinAsync"/>; <c>false</c> on plain
@@ -428,6 +457,9 @@ namespace Kraty
         [JsonProperty("finalizedReason")] public string? FinalizedReason { get; set; }
         [JsonProperty("entries")] public List<LeaderboardEntry> Entries { get; set; } = new();
         [JsonProperty("self")] public LeaderboardSelf? Self { get; set; }
+        /// <summary>Promotion/relegation cutoffs for this division, from server
+        /// config; <c>null</c> when the event runs no ladder.</summary>
+        [JsonProperty("progression")] public ProgressionLimits? Progression { get; set; }
         /// <summary>
         /// <c>true</c> on the response to
         /// <see cref="EventLeaderboardsClient.JoinAsync"/>; <c>false</c> on
@@ -497,6 +529,39 @@ namespace Kraty
     {
         [JsonProperty("crate")] public Grant Crate { get; set; } = new();
         [JsonProperty("contents")] public Grant Contents { get; set; } = new();
+    }
+
+    /// <summary>
+    /// One line of a client-initiated grant (see
+    /// <see cref="GrantsClient.GrantAsync"/>). Set <see cref="Type"/> to
+    /// <c>"currency"</c> (+ <see cref="CurrencyKey"/> / <see cref="Amount"/>),
+    /// <c>"item"</c> (+ <see cref="ItemKey"/> / <see cref="Quantity"/>), or
+    /// <c>"crate"</c> (+ <see cref="CrateItemKey"/> / <see cref="Quantity"/>).
+    /// </summary>
+    public sealed class GrantEntry
+    {
+        [JsonProperty("type")] public string Type { get; set; } = "item";
+        [JsonProperty("currencyKey", NullValueHandling = NullValueHandling.Ignore)] public string? CurrencyKey { get; set; }
+        [JsonProperty("amount", NullValueHandling = NullValueHandling.Ignore)] public double? Amount { get; set; }
+        [JsonProperty("itemKey", NullValueHandling = NullValueHandling.Ignore)] public string? ItemKey { get; set; }
+        [JsonProperty("crateItemKey", NullValueHandling = NullValueHandling.Ignore)] public string? CrateItemKey { get; set; }
+        [JsonProperty("quantity", NullValueHandling = NullValueHandling.Ignore)] public int? Quantity { get; set; }
+        [JsonProperty("parameters", NullValueHandling = NullValueHandling.Ignore)] public Dictionary<string, object?>? Parameters { get; set; }
+    }
+
+    /// <summary>
+    /// Body of a client-initiated grant. Self-only (you can only grant to the
+    /// active player); requires the game's inventory management to be
+    /// <c>permissive</c>.
+    /// </summary>
+    public sealed class GrantSelfInput
+    {
+        [JsonProperty("entries")] public List<GrantEntry> Entries { get; set; } = new();
+        /// <summary>Defaults to <c>"reward"</c> server-side; use <c>"crate"</c> for a crate grant.</summary>
+        [JsonProperty("kind", NullValueHandling = NullValueHandling.Ignore)] public string? Kind { get; set; }
+        [JsonProperty("expiresAt", NullValueHandling = NullValueHandling.Ignore)] public string? ExpiresAt { get; set; }
+        [JsonProperty("metadata", NullValueHandling = NullValueHandling.Ignore)] public Dictionary<string, object?>? Metadata { get; set; }
+        [JsonProperty("idempotencyKey", NullValueHandling = NullValueHandling.Ignore)] public string? IdempotencyKey { get; set; }
     }
 
     public sealed class Lobby

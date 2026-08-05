@@ -118,7 +118,7 @@ LiveLeaderboardSubscription     Subscribe(string leaderboardId, Action<Leaderboa
 - `int PollIntervalMs`: default 15_000; 0 disables polling (SSE-only)
 - `Action<Exception>? OnError`
 
-`EventLeaderboard` read response includes `bool Finalized` and, when finalized, `string? FinalizedReason` (`session_terminated` \| `window_closed`), which powers the finalization catch-up's session-vs-window distinction. `FinalizationResult` = `{ MembershipRef Ref; string Reason; SelfEntry? Self; IReadOnlyList<FinalStanding>? Standings; string? EventKey }`; `Reason` uses the `FinalizationReason` consts (`SessionTerminated` \| `WindowClosed` \| `PeriodRolled` \| `Finalized`). Registry persistence is injectable via `KratyClientOptions.MembershipStore` (`PlayerPrefsMembershipStore` in Unity, `InMemoryMembershipStore` otherwise).
+`Leaderboard` and `EventLeaderboard` reads also carry `ProgressionLimits? Progression` — the resolved promotion/relegation cutoffs for the caller's division (`Promotion` / `Relegation`, each `{ int Places; string ItemKey }` or null; a per-division override wins over the global ladder) — so a client renders "top N promote / bottom N relegate" from server config. `EventLeaderboard` read response includes `bool Finalized` and, when finalized, `string? FinalizedReason` (`session_terminated` \| `window_closed`), which powers the finalization catch-up's session-vs-window distinction. `FinalizationResult` = `{ MembershipRef Ref; string Reason; SelfEntry? Self; IReadOnlyList<FinalStanding>? Standings; string? EventKey }`; `Reason` uses the `FinalizationReason` consts (`SessionTerminated` \| `WindowClosed` \| `PeriodRolled` \| `Finalized`). Registry persistence is injectable via `KratyClientOptions.MembershipStore` (`PlayerPrefsMembershipStore` in Unity, `InMemoryMembershipStore` otherwise).
 
 `LiveLeaderboardSubscription` exposes `Task CancelAsync()` /
 `void Dispose()`. Callbacks fire on the HTTP background thread, so
@@ -192,7 +192,8 @@ PlayerPrefsSecretStore        // Unity, wraps UnityEngine.PlayerPrefs (default o
 `Attempt`, `StartAttemptResponse`, `ProgressResult`, `MilestoneFired`,
 `EventListing`, `EntryCost`, `EntryCostCurrency`, `EntryCostItem`,
 `Leaderboard`, `EventLeaderboard`, `LeaderboardEntry`,
-`LeaderboardSelf`, `LeaderboardPeriod`, `LeaderboardPeriods`,
+`LeaderboardSelf`, `ProgressionLimits`, `ProgressionBand`,
+`LeaderboardPeriod`, `LeaderboardPeriods`,
 `Grant`, `OpenCrateResponse`, `Lobby`, `ProgressInput`,
 `PlayerRegistration`, `PlayerItemHolding`, `PlayerWalletHolding`,
 `ConsumeItemInput`, `ConsumeItemResult`, `DebitWalletInput`,

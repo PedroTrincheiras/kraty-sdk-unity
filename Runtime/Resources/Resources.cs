@@ -677,6 +677,29 @@ namespace Kraty
         }
 
         /// <summary>
+        /// POST <c>/sdk/v1/players/:p/grants</c>: grant items / currency / a
+        /// crate to the ACTIVE player (self-only — the player secret means you
+        /// can only grant to yourself). Requires the game's inventory
+        /// management to be <c>permissive</c>, else the server returns 403
+        /// <c>inventory_not_permissive</c>. The grant auto-deposits into the
+        /// player's holdings.
+        /// </summary>
+        public async Task<Grant> GrantAsync(
+            GrantSelfInput input,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<Grant>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/grants",
+                body: input,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new Grant();
+        }
+
+        /// <summary>
         /// POST <c>/sdk/v1/players/:p/grants/:g/claim</c> for the
         /// active player. Idempotent; claiming an already-claimed
         /// grant returns the same row.
