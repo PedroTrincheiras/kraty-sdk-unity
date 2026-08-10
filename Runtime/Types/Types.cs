@@ -925,6 +925,46 @@ namespace Kraty
     }
 
     /// <summary>
+    /// Input for <see cref="WalletClient.ProgressAsync"/>. <see cref="Amount"/>
+    /// is SIGNED: positive advances, negative rolls back (the balance never
+    /// goes below zero).
+    /// </summary>
+    public sealed class ProgressWalletInput
+    {
+        [JsonProperty("amount")] public int Amount { get; set; }
+        [JsonProperty("reason")] public string? Reason { get; set; }
+        [JsonProperty("idempotencyKey")] public string? IdempotencyKey { get; set; }
+    }
+
+    /// <summary>
+    /// A progression item the platform recomputed as a consequence of a
+    /// <see cref="WalletClient.ProgressAsync"/> call — typically the player's
+    /// <c>level</c> following their <c>xp</c>. <see cref="GrantIds"/> are the
+    /// per-level rewards that fired; claim them with
+    /// <see cref="GrantsClient.CollectAllAsync"/>.
+    /// </summary>
+    public sealed class DerivedProgressionChange
+    {
+        [JsonProperty("economyKey")] public string EconomyKey { get; set; } = string.Empty;
+        [JsonProperty("previous")] public int Previous { get; set; }
+        [JsonProperty("current")] public int Current { get; set; }
+        [JsonProperty("delta")] public int Delta { get; set; }
+        [JsonProperty("grantIds")] public List<string> GrantIds { get; set; } = new();
+    }
+
+    public sealed class ProgressWalletResult
+    {
+        [JsonProperty("economyKey")] public string EconomyKey { get; set; } = string.Empty;
+        [JsonProperty("balance")] public int Balance { get; set; }
+        [JsonProperty("applied")] public bool Applied { get; set; }
+        /// <summary>
+        /// Empty unless another progression item is configured to derive from
+        /// this one.
+        /// </summary>
+        [JsonProperty("derived")] public List<DerivedProgressionChange> Derived { get; set; } = new();
+    }
+
+    /// <summary>
     /// Trustworthy server clock, returned by
     /// <see cref="KratyClient.GetServerTimeAsync"/>. Use it as an anti-cheat
     /// time source: game timers (event countdowns, etc.) should be checked
@@ -980,6 +1020,12 @@ namespace Kraty
         [JsonProperty("lastActiveAt")] public string? LastActiveAt { get; set; }
         /// <summary>Free-form client-set status ("in_match", "lobby", …), or null.</summary>
         [JsonProperty("status")] public string? Status { get; set; }
+        /// <summary>
+        /// Progression balances requested via the call's <c>progression</c>
+        /// argument, e.g. <c>{ "level": 12 }</c>. Null when none were asked
+        /// for; a resource the player never earned reads <c>0</c>.
+        /// </summary>
+        [JsonProperty("progression")] public Dictionary<string, int>? Progression { get; set; }
     }
 
     /// <summary>The caller's shareable friend code + display identity.</summary>
@@ -988,6 +1034,11 @@ namespace Kraty
         /// <summary>Short, unambiguous, stable share code (e.g. <c>"K7F2QX"</c>).</summary>
         [JsonProperty("friendCode")] public string Code { get; set; } = string.Empty;
         [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+        /// <summary>
+        /// The caller's OWN progression balances, when requested. Handy for a
+        /// profile card showing the share code and the player's level together.
+        /// </summary>
+        [JsonProperty("progression")] public Dictionary<string, int>? Progression { get; set; }
     }
 
     /// <summary>The player's own presence after a heartbeat.</summary>
@@ -1006,6 +1057,12 @@ namespace Kraty
     {
         [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
         [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+        /// <summary>
+        /// Progression balances requested via the call's <c>progression</c>
+        /// argument, e.g. <c>{ "level": 12 }</c>. Null when none were asked
+        /// for; a resource the player never earned reads <c>0</c>.
+        /// </summary>
+        [JsonProperty("progression")] public Dictionary<string, int>? Progression { get; set; }
     }
 
     /// <summary>A pending friend request, incoming or outgoing.</summary>
@@ -1037,6 +1094,12 @@ namespace Kraty
         [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
         /// <summary>One of <c>none</c>, <c>friends</c>, <c>request_incoming</c>, <c>request_outgoing</c>.</summary>
         [JsonProperty("relationship")] public string Relationship { get; set; } = string.Empty;
+        /// <summary>
+        /// Progression balances requested via the call's <c>progression</c>
+        /// argument, e.g. <c>{ "level": 12 }</c>. Null when none were asked
+        /// for; a resource the player never earned reads <c>0</c>.
+        /// </summary>
+        [JsonProperty("progression")] public Dictionary<string, int>? Progression { get; set; }
     }
 
     /// <summary>A player the caller has blocked.</summary>

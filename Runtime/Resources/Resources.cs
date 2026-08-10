@@ -895,6 +895,83 @@ namespace Kraty
             ).ConfigureAwait(false);
             return env.Data ?? new ConsumeItemResult();
         }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/inventory/stream</c>: live subscription
+        /// to everything that touches this player's items, wallet, and
+        /// grants — whoever caused it. A reward granted from the dashboard,
+        /// a currency credited by the studio's backend, an event payout, and
+        /// the client's own consume all arrive here.
+        ///
+        /// <para>
+        /// Returns the raw handle; hook <c>OnEvent</c> / <c>OnError</c> and
+        /// call <c>CancelAsync</c> when done. See <see cref="WatchAsync"/>
+        /// for the callback form.
+        /// </para>
+        ///
+        /// <para>
+        /// Callbacks fire on the HTTP background thread; marshal to Unity's
+        /// main thread before touching <c>UnityEngine</c> APIs. Does NOT
+        /// auto-reconnect. Treat each event as "something changed, re-read
+        /// this"; the REST reads stay authoritative.
+        /// </para>
+        /// </summary>
+        /// <param name="as">Address a different player (server-side tooling only).</param>
+        /// <param name="ct">Cancellation token.</param>
+        public async Task<InventoryStream> LiveAsync(
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            return await InventoryStreamFactory.OpenAsync(
+                _client.HttpForStreaming,
+                _client.BaseUrlForStreaming,
+                externalPlayerId,
+                _client.AuthHeaderForStreaming,
+                _client.PlayerSecretForStreaming,
+                ct
+            ).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Callback form of <see cref="LiveAsync"/>: the one-liner most
+        /// games want.
+        /// <code>
+        /// var stream = await kraty.Inventory.WatchAsync(
+        ///     ev => dispatcher.Enqueue(() => {
+        ///         if (ev.Kind == "inventory_changed") RefreshBackpack();
+        ///         if (ev.Kind == "grant_created") ShowRewardPopup(ev.GrantId);
+        ///     }),
+        ///     ignoreOwnWrites: true);
+        /// // later
+        /// await stream.CancelAsync();
+        /// </code>
+        /// </summary>
+        /// <param name="handler">Invoked per event, on a background thread.</param>
+        /// <param name="ignoreOwnWrites">
+        /// Skip events this client caused (<c>origin: client</c>), so a
+        /// consume doesn't bounce back as a refresh.
+        /// </param>
+        /// <param name="onError">Transport failures; the subscription is done by then.</param>
+        /// <param name="as">Address a different player (server-side tooling only).</param>
+        /// <param name="ct">Cancellation token.</param>
+        public async Task<InventoryStream> WatchAsync(
+            Action<InventoryStreamEvent> handler,
+            bool ignoreOwnWrites = false,
+            Action<Exception>? onError = null,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            var stream = await LiveAsync(@as, ct).ConfigureAwait(false);
+            stream.OnEvent = ev =>
+            {
+                if (ignoreOwnWrites && ev.IsOwnWrite) return;
+                handler(ev);
+            };
+            if (onError != null) stream.OnError = onError;
+            return stream;
+        }
     }
 
     /// <summary>
@@ -948,6 +1025,46 @@ namespace Kraty
                 cancellationToken: ct
             ).ConfigureAwait(false);
             return env.Data ?? new DebitWalletResult();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/wallet/:economyKey/progress</c>: push
+        /// progress into a <b>progression</b> resource straight from the game
+        /// client — XP from a finished run, distance travelled, stars
+        /// collected — with no studio backend in the loop.
+        /// <para>
+        /// The resource must be <c>kind: progression</c> AND flagged
+        /// <b>client-writable</b> in the dashboard; otherwise this fails 403.
+        /// Spendable currencies are never client-writable.
+        /// </para>
+        /// <para>
+        /// Anything DERIVED from the resource moves with it in the same
+        /// transaction, and each level crossed pays its configured reward, so
+        /// <see cref="ProgressWalletResult.Derived"/> can carry a level jump
+        /// plus the grant ids to claim — enough to render "Level 5!" and a
+        /// reward popup without a second request.
+        /// </para>
+        /// </summary>
+        /// <param name="economyKey">The progression resource to advance.</param>
+        /// <param name="input">Signed amount + optional reason / idempotency key.</param>
+        /// <param name="as">Address a different player (server-side tooling only).</param>
+        /// <param name="ct">Cancellation token.</param>
+        public async Task<ProgressWalletResult> ProgressAsync(
+            string economyKey,
+            ProgressWalletInput input,
+            string? @as = null,
+            CancellationToken ct = default
+        )
+        {
+            if (input == null) throw new ArgumentNullException(nameof(input));
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<ProgressWalletResult>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/wallet/{Uri.EscapeDataString(economyKey)}/progress",
+                body: input,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new ProgressWalletResult();
         }
     }
 
@@ -1143,17 +1260,39 @@ namespace Kraty
         /// use and stable forever after. Share it out-of-band so a friend can
         /// <see cref="AddAsync"/> you without a username search.
         /// </summary>
+        /// <param name="progression">
+        /// Economy keys whose balances to attach (e.g. <c>["level"]</c>). Here
+        /// that means the caller's OWN balances, so a profile card can render
+        /// the share code and the level from one request.
+        /// </param>
+        /// <param name="as">Address a different player (server-side tooling only).</param>
+        /// <param name="ct">Cancellation token.</param>
         public async Task<FriendCode> GetCodeAsync(
             string? @as = null,
+            IEnumerable<string>? progression = null,
             CancellationToken ct = default)
         {
             var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
             var env = await _client.RequestAsync<DataEnvelope<FriendCode>>(
                 HttpMethod.Get,
-                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friend-code",
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friend-code{ProgressionQuery(progression)}",
                 cancellationToken: ct
             ).ConfigureAwait(false);
             return env.Data ?? new FriendCode();
+        }
+
+        /// <summary>
+        /// Builds the <c>?progression=level,trophies</c> query for the
+        /// social-graph reads. Opt-in and explicit, because "the level" is a
+        /// different economy key in every game; nothing extra is read
+        /// server-side when omitted. Returns an empty string for no keys.
+        /// </summary>
+        private static string ProgressionQuery(IEnumerable<string>? keys)
+        {
+            if (keys == null) return string.Empty;
+            var joined = string.Join(",", keys);
+            if (joined.Length == 0) return string.Empty;
+            return $"?progression={Uri.EscapeDataString(joined)}";
         }
 
         /// <summary>
@@ -1186,14 +1325,23 @@ namespace Kraty
         /// friends, each enriched with display identity and live presence
         /// (online / last-active / status).
         /// </summary>
+        /// <param name="progression">
+        /// Economy keys whose balances to attach to each friend (e.g.
+        /// <c>["level"]</c>), so a friends list renders "Lv 12 ShadowStrike"
+        /// without a request per friend. A resource a friend never earned
+        /// reads <c>0</c>.
+        /// </param>
+        /// <param name="as">Address a different player (server-side tooling only).</param>
+        /// <param name="ct">Cancellation token.</param>
         public async Task<List<Friend>> ListAsync(
             string? @as = null,
+            IEnumerable<string>? progression = null,
             CancellationToken ct = default)
         {
             var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
             var env = await _client.RequestAsync<DataEnvelope<FriendsListEnvelope>>(
                 HttpMethod.Get,
-                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends",
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends{ProgressionQuery(progression)}",
                 cancellationToken: ct
             ).ConfigureAwait(false);
             return env.Data?.Friends ?? new List<Friend>();
@@ -1209,11 +1357,14 @@ namespace Kraty
             string query,
             int? limit = null,
             string? @as = null,
+            IEnumerable<string>? progression = null,
             CancellationToken ct = default)
         {
             var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
             var qs = new List<string> { $"q={Uri.EscapeDataString(query ?? string.Empty)}" };
             if (limit.HasValue) qs.Add($"limit={limit.Value}");
+            var progressionKeys = progression == null ? string.Empty : string.Join(",", progression);
+            if (progressionKeys.Length > 0) qs.Add($"progression={Uri.EscapeDataString(progressionKeys)}");
             var path = $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/search?{string.Join("&", qs)}";
             var env = await _client.RequestAsync<DataEnvelope<FriendSearchEnvelope>>(
                 HttpMethod.Get, path, cancellationToken: ct
@@ -1225,14 +1376,20 @@ namespace Kraty
         /// GET <c>/sdk/v1/players/:p/friends/requests</c>: the caller's
         /// pending incoming + outgoing friend requests.
         /// </summary>
+        /// <param name="progression">
+        /// Economy keys whose balances to attach to each player.
+        /// </param>
+        /// <param name="as">Address a different player (server-side tooling only).</param>
+        /// <param name="ct">Cancellation token.</param>
         public async Task<FriendRequests> ListRequestsAsync(
             string? @as = null,
+            IEnumerable<string>? progression = null,
             CancellationToken ct = default)
         {
             var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
             var env = await _client.RequestAsync<DataEnvelope<FriendRequests>>(
                 HttpMethod.Get,
-                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/requests",
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/requests{ProgressionQuery(progression)}",
                 cancellationToken: ct
             ).ConfigureAwait(false);
             return env.Data ?? new FriendRequests();
