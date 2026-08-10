@@ -328,6 +328,13 @@ namespace Kraty
         /// predate the split feature.
         /// </summary>
         [JsonProperty("anonymizedName")] public string? AnonymizedName { get; set; }
+        /// <summary>
+        /// Per-player progression balances requested via
+        /// <c>Progression</c> on the read options, e.g.
+        /// <c>{ "level": 12 }</c>. Null when none were requested; a resource
+        /// the player never earned reads <c>0</c>. Never set on bot rows.
+        /// </summary>
+        [JsonProperty("progression")] public Dictionary<string, int>? Progression { get; set; }
         /// <summary>Matching avatar reference for <see cref="AnonymizedName"/>.</summary>
         [JsonProperty("anonymizedAvatar")] public string? AnonymizedAvatar { get; set; }
         [JsonProperty("score")] public double Score { get; set; }
@@ -629,6 +636,13 @@ namespace Kraty
         /// <summary>1–200, default 50 server-side.</summary>
         public int? Limit { get; set; }
         /// <summary>
+        /// Progression economy keys to attach to each player entry (max 8),
+        /// e.g. <c>new[] { "level" }</c>. Omit and nothing extra is read
+        /// server-side.
+        /// </summary>
+        public IEnumerable<string>? Progression { get; set; }
+
+        /// <summary>
         /// Bucket value for segmented boards. Required only for
         /// <c>context</c> segmentation: pass the same value your SDK
         /// supplied in <c>playerContext[segmentation.key]</c> when
@@ -678,6 +692,13 @@ namespace Kraty
     public sealed class StandingsReadOptions
     {
         /// <summary>
+        /// Progression economy keys to attach to each player entry (max 8),
+        /// e.g. <c>new[] { "level" }</c>. Omit and nothing extra is read
+        /// server-side.
+        /// </summary>
+        public IEnumerable<string>? Progression { get; set; }
+
+        /// <summary>
         /// Which segments to return (default <c>"all"</c>):
         /// <list type="bullet">
         ///   <item><description><c>"self_segment"</c>: the caller's single home segment.</description></item>
@@ -712,6 +733,12 @@ namespace Kraty
         public bool IncludeSelf { get; set; }
         /// <summary>Required when <see cref="IncludeSelf"/> is true.</summary>
         public string? ExternalId { get; set; }
+        /// <summary>
+        /// Progression economy keys to attach to each player entry (max 8),
+        /// e.g. <c>new[] { "level" }</c>. Omit and nothing extra is read
+        /// server-side.
+        /// </summary>
+        public IEnumerable<string>? Progression { get; set; }
     }
 
     /// <summary>

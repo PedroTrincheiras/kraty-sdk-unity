@@ -163,6 +163,8 @@ namespace Kraty
             opts ??= new LeaderboardReadOptions();
             var qs = new List<string>();
             if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            var progressionKeys = opts.Progression == null ? string.Empty : string.Join(",", opts.Progression);
+            if (progressionKeys.Length > 0) qs.Add($"progression={Uri.EscapeDataString(progressionKeys)}");
             if (!string.IsNullOrEmpty(opts.Segment)) qs.Add($"segment={Uri.EscapeDataString(opts.Segment!)}");
             if (!string.IsNullOrEmpty(opts.Period)) qs.Add($"period={Uri.EscapeDataString(opts.Period!)}");
             if (opts.IncludeSelf)
@@ -297,6 +299,8 @@ namespace Kraty
             if (!string.IsNullOrEmpty(opts.Segment)) qs.Add($"segment={Uri.EscapeDataString(opts.Segment!)}");
             if (!string.IsNullOrEmpty(opts.Period)) qs.Add($"period={Uri.EscapeDataString(opts.Period!)}");
             if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            var progressionKeys = opts.Progression == null ? string.Empty : string.Join(",", opts.Progression);
+            if (progressionKeys.Length > 0) qs.Add($"progression={Uri.EscapeDataString(progressionKeys)}");
             if (opts.MaxSegments.HasValue) qs.Add($"maxSegments={opts.MaxSegments.Value}");
             // self_segment / mine need a caller; auto-resolve the active
             // identity when the caller didn't pass one explicitly.
@@ -370,6 +374,8 @@ namespace Kraty
             opts ??= new EventLeaderboardReadOptions();
             var qs = new List<string>();
             if (opts.Limit.HasValue) qs.Add($"limit={opts.Limit.Value}");
+            var progressionKeys = opts.Progression == null ? string.Empty : string.Join(",", opts.Progression);
+            if (progressionKeys.Length > 0) qs.Add($"progression={Uri.EscapeDataString(progressionKeys)}");
             if (opts.IncludeSelf)
             {
                 var externalId = !string.IsNullOrEmpty(opts.ExternalId)
