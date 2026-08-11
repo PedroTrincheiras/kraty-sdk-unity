@@ -24,6 +24,11 @@ per-player bootstrap.
 > `server_integration` key in a shipped Unity build is a security
 > incident.
 
+> **Use 0.21.1 or later.** `v0.21.0` shipped two runtime scripts without
+> their `.meta` files, so Unity silently skipped them and the package failed
+> to compile (`CS0246: ... 'InventoryStream' could not be found`). If you are
+> pinned to `v0.21.0`, bump the ref and reimport.
+
 ## Install
 
 ### Git URL (recommended)
@@ -33,7 +38,7 @@ In `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.21.0"
+    "app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.21.1"
   }
 }
 ```
@@ -243,5 +248,5 @@ idempotent: re-running for the same version is a no-op.
 Consumers update by bumping the ref in their `manifest.json`:
 
 ```json
-"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.21.0"
+"app.kraty.sdk": "https://github.com/PedroTrincheiras/kraty-sdk-unity.git#v0.21.1"
 ```
