@@ -1053,6 +1053,12 @@ namespace Kraty
         /// for; a resource the player never earned reads <c>0</c>.
         /// </summary>
         [JsonProperty("progression")] public Dictionary<string, int>? Progression { get; set; }
+        /// <summary>
+        /// ISO timestamp when this friend may be gifted again. Null means
+        /// "giftable now" (or the game has gifting turned off), so a UI can
+        /// treat a non-null value as "disable the gift button until then".
+        /// </summary>
+        [JsonProperty("giftCooldownUntil")] public string? GiftCooldownUntil { get; set; }
     }
 
     /// <summary>The caller's shareable friend code + display identity.</summary>
@@ -1178,6 +1184,116 @@ namespace Kraty
         public static FriendTarget ByPlayerId(string externalPlayerId) => new() { ExternalPlayerId = externalPlayerId };
     }
 
+    // ── Friend gifting ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// One entry of the studio's gifting allowlist, from
+    /// <see cref="FriendsClient.GiftCatalogAsync"/>. <see cref="Type"/> is
+    /// <c>"item"</c> or <c>"currency"</c> — the latter covers progression
+    /// items (XP, trophies) as well as spendable currencies, since both live
+    /// in one catalog table.
+    /// </summary>
+    public sealed class GiftableResource
+    {
+        [JsonProperty("type")] public string Type { get; set; } = string.Empty;
+        [JsonProperty("key")] public string Key { get; set; } = string.Empty;
+        /// <summary>Display name. A bare string, or a locale map when the
+        /// studio localizes its catalog; deserialized loosely for that reason.</summary>
+        [JsonProperty("name")] public Newtonsoft.Json.Linq.JToken? Name { get; set; }
+        [JsonProperty("iconUrl")] public string? IconUrl { get; set; }
+        /// <summary>Economy rows only: <c>currency</c> or <c>progression</c>.</summary>
+        [JsonProperty("economyKind")] public string? EconomyKind { get; set; }
+        /// <summary>Item rows only.</summary>
+        [JsonProperty("rarity")] public string? Rarity { get; set; }
+        /// <summary>Largest amount one gift of this resource may carry.</summary>
+        [JsonProperty("maxAmount")] public int MaxAmount { get; set; }
+        /// <summary>Whether sending debits the sender's own holdings.</summary>
+        [JsonProperty("costsSender")] public bool CostsSender { get; set; }
+    }
+
+    /// <summary>The gifting allowlist plus the game's limits.</summary>
+    public sealed class GiftCatalog
+    {
+        [JsonProperty("enabled")] public bool Enabled { get; set; }
+        /// <summary>Wait between two gifts to the SAME friend; 0 ⇒ no wait.</summary>
+        [JsonProperty("cooldownSeconds")] public int CooldownSeconds { get; set; }
+        /// <summary>Rolling-24h cap across all friends; null ⇒ unlimited.</summary>
+        [JsonProperty("dailySendLimit")] public int? DailySendLimit { get; set; }
+        /// <summary>Gifts the caller already sent inside that window.</summary>
+        [JsonProperty("sentToday")] public int SentToday { get; set; }
+        [JsonProperty("resources")] public List<GiftableResource> Resources { get; set; } = new();
+    }
+
+    /// <summary>A gift, from either side of the exchange.</summary>
+    public sealed class Gift
+    {
+        [JsonProperty("giftId")] public string GiftId { get; set; } = string.Empty;
+        /// <summary>The grant delivering it; also claimable via the grants API.</summary>
+        [JsonProperty("grantId")] public string GrantId { get; set; } = string.Empty;
+        /// <summary>One of <c>incoming</c>, <c>outgoing</c>.</summary>
+        [JsonProperty("direction")] public string Direction { get; set; } = string.Empty;
+        /// <summary>The other party: sender for incoming, recipient for outgoing.</summary>
+        [JsonProperty("player")] public GiftCounterparty? Player { get; set; }
+        /// <summary>One of <c>item</c>, <c>currency</c>.</summary>
+        [JsonProperty("type")] public string Type { get; set; } = string.Empty;
+        [JsonProperty("resourceKey")] public string ResourceKey { get; set; } = string.Empty;
+        [JsonProperty("amount")] public int Amount { get; set; }
+        [JsonProperty("message")] public string? Message { get; set; }
+        /// <summary>Mirrors the delivering grant: <c>pending</c> until claimed.</summary>
+        [JsonProperty("status")] public string Status { get; set; } = string.Empty;
+        [JsonProperty("sentAt")] public string SentAt { get; set; } = string.Empty;
+        [JsonProperty("claimedAt")] public string? ClaimedAt { get; set; }
+        [JsonProperty("expiresAt")] public string? ExpiresAt { get; set; }
+    }
+
+    /// <summary>The other player on a gift.</summary>
+    public sealed class GiftCounterparty
+    {
+        [JsonProperty("externalPlayerId")] public string ExternalPlayerId { get; set; } = string.Empty;
+        [JsonProperty("displayIdentity")] public PlayerIdentity? DisplayIdentity { get; set; }
+    }
+
+    /// <summary>
+    /// What to send and to whom, for <see cref="FriendsClient.SendGiftAsync"/>.
+    /// Set exactly one of <see cref="FriendCode"/> / <see cref="ExternalPlayerId"/>;
+    /// prefer the <see cref="ToCode"/> / <see cref="ToPlayerId"/> factories.
+    /// </summary>
+    public sealed class SendGiftInput
+    {
+        [JsonProperty("friendCode", NullValueHandling = NullValueHandling.Ignore)]
+        public string? FriendCode { get; set; }
+
+        [JsonProperty("externalPlayerId", NullValueHandling = NullValueHandling.Ignore)]
+        public string? ExternalPlayerId { get; set; }
+
+        /// <summary><c>"item"</c> or <c>"currency"</c>.</summary>
+        [JsonProperty("type")] public string Type { get; set; } = string.Empty;
+
+        /// <summary>Must name a catalog row the studio flagged giftable.</summary>
+        [JsonProperty("resourceKey")] public string ResourceKey { get; set; } = string.Empty;
+
+        [JsonProperty("amount")] public int Amount { get; set; }
+
+        /// <summary>Optional short note; trimmed to 140 chars server-side.</summary>
+        [JsonProperty("message", NullValueHandling = NullValueHandling.Ignore)]
+        public string? Message { get; set; }
+
+        /// <summary>
+        /// Replay guard: a retry with the same key returns the original gift
+        /// instead of tripping the per-friend cooldown.
+        /// </summary>
+        [JsonProperty("idempotencyKey", NullValueHandling = NullValueHandling.Ignore)]
+        public string? IdempotencyKey { get; set; }
+
+        /// <summary>Send to a friend addressed by their share code.</summary>
+        public static SendGiftInput ToCode(string friendCode, string type, string resourceKey, int amount) =>
+            new() { FriendCode = friendCode, Type = type, ResourceKey = resourceKey, Amount = amount };
+
+        /// <summary>Send to a friend addressed by their external id.</summary>
+        public static SendGiftInput ToPlayerId(string externalPlayerId, string type, string resourceKey, int amount) =>
+            new() { ExternalPlayerId = externalPlayerId, Type = type, ResourceKey = resourceKey, Amount = amount };
+    }
+
     /// <summary>
     /// Inventory list response wrapper; the backend nests the list
     /// inside <c>{ "data": { "items": [...] } }</c>.
@@ -1224,6 +1340,18 @@ namespace Kraty
     internal sealed class BlockEnvelope
     {
         [JsonProperty("blocked")] public BlockedPlayer? Blocked { get; set; }
+    }
+
+    /// <summary>Wrapper for <c>{ "data": { "gifts": [...] } }</c>.</summary>
+    internal sealed class GiftListEnvelope
+    {
+        [JsonProperty("gifts")] public List<Gift>? Gifts { get; set; }
+    }
+
+    /// <summary>Wrapper for <c>{ "data": { "gift": {...} } }</c>.</summary>
+    internal sealed class GiftEnvelope
+    {
+        [JsonProperty("gift")] public Gift? Gift { get; set; }
     }
 
     /// <summary>

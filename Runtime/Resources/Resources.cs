@@ -1554,6 +1554,128 @@ namespace Kraty
                 cancellationToken: ct
             ).ConfigureAwait(false);
         }
+
+        // ── Gifting ──────────────────────────────────────────────────────
+
+        private static string GiftQuery(bool pendingOnly, int? limit)
+        {
+            var parts = new List<string>();
+            if (pendingOnly) parts.Add("status=pending");
+            if (limit.HasValue) parts.Add($"limit={limit.Value}");
+            return parts.Count == 0 ? string.Empty : "?" + string.Join("&", parts);
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/friends/gifts/catalog</c>: what this
+        /// player may gift and how often.
+        ///
+        /// Returns the studio's allowlist — every catalog row flagged giftable
+        /// in the dashboard — plus the game's cooldown / daily-limit config, so
+        /// a gift picker can be driven entirely from server config.
+        /// <c>type: "currency"</c> entries include progression items like XP.
+        /// Throws when the game hasn't enabled gifting (<c>403
+        /// gifting_disabled</c>).
+        /// </summary>
+        public async Task<GiftCatalog> GiftCatalogAsync(
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<GiftCatalog>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/gifts/catalog",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data ?? new GiftCatalog();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/friends/gifts</c>: send a gift to an
+        /// accepted friend.
+        ///
+        /// The catalog decides what may travel and how much of it; when the
+        /// resource is configured to cost the sender, their balance is debited
+        /// in the same transaction. The recipient receives a PENDING grant that
+        /// stays unopened until they call <see cref="ClaimGiftAsync"/>. Set
+        /// <c>IdempotencyKey</c> so a retry returns the original gift instead
+        /// of failing the per-friend cooldown.
+        /// </summary>
+        public async Task<Gift> SendGiftAsync(
+            SendGiftInput input,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            if (input == null) throw new ArgumentNullException(nameof(input));
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<GiftEnvelope>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/gifts",
+                body: input,
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Gift ?? new Gift();
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/friends/gifts</c>: the player's gift
+        /// inbox, newest first. Pass <paramref name="pendingOnly"/> to narrow
+        /// it to gifts still waiting to be claimed.
+        /// </summary>
+        public async Task<List<Gift>> GiftsAsync(
+            bool pendingOnly = false,
+            int? limit = null,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<GiftListEnvelope>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/gifts{GiftQuery(pendingOnly, limit)}",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Gifts ?? new List<Gift>();
+        }
+
+        /// <summary>
+        /// GET <c>/sdk/v1/players/:p/friends/gifts/sent</c>: gifts this player
+        /// has sent, newest first.
+        /// </summary>
+        public async Task<List<Gift>> SentGiftsAsync(
+            bool pendingOnly = false,
+            int? limit = null,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<GiftListEnvelope>>(
+                HttpMethod.Get,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/gifts/sent{GiftQuery(pendingOnly, limit)}",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Gifts ?? new List<Gift>();
+        }
+
+        /// <summary>
+        /// POST <c>/sdk/v1/players/:p/friends/gifts/:giftId/claim</c>: claim a
+        /// received gift.
+        ///
+        /// This is where a gift pays out: the delivering grant defers its
+        /// deposit to claim time, so an unopened gift is genuinely unopened.
+        /// Replays on an already-claimed gift return the same row.
+        /// </summary>
+        public async Task<Gift> ClaimGiftAsync(
+            string giftId,
+            string? @as = null,
+            CancellationToken ct = default)
+        {
+            var externalPlayerId = await _client.ResolvePlayerIdAsync(@as, ct).ConfigureAwait(false);
+            var env = await _client.RequestAsync<DataEnvelope<GiftEnvelope>>(
+                HttpMethod.Post,
+                $"/sdk/v1/players/{Uri.EscapeDataString(externalPlayerId)}/friends/gifts/{Uri.EscapeDataString(giftId)}/claim",
+                cancellationToken: ct
+            ).ConfigureAwait(false);
+            return env.Data?.Gift ?? new Gift();
+        }
     }
 
     /// <summary>
